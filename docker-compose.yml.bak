@@ -1,6 +1,21 @@
 version: '3.8'
 
 services:
+  # MongoDB数据库
+  mongodb:
+    image: mongo:6.0
+    container_name: sql_plan_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: sql_results
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - sql_plan_network
+
   # 后端服务
   backend:
     build:
@@ -11,21 +26,16 @@ services:
     ports:
       - "8000:8000"
     environment:
-      # 连接本地MongoDB服务
-      # 在Linux上，如果容器无法访问localhost，请使用宿主机IP
-      # 例如：mongodb://host.docker.internal:27017 或 mongodb://172.17.0.1:27017
-      - MONGODB_URL=mongodb://host.docker.internal:27017
+      - MONGODB_URL=mongodb://mongodb:27017
       - DATABASE_NAME=sql_results
       - API_HOST=0.0.0.0
       - API_PORT=8000
-      # 添加extra_hosts以便在Linux环境中访问宿主机
-      - ALLOWED_ORIGINS=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+    depends_on:
+      - mongodb
     networks:
       - sql_plan_network
     volumes:
       - ./backend:/app
-    # 如果上面的host.docker.internal无法工作，可以尝试使用宿主机IP
-    # command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --env-file .env
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # 前端服务
@@ -46,6 +56,10 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+
+volumes:
+  mongodb_data:
+    driver: local
 
 networks:
   sql_plan_network:

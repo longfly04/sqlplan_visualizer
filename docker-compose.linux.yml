@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # 后端服务 - Linux专用配置
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sql_plan_backend
+    restart: unless-stopped
+    ports:
+      - "18000:8000"
+    environment:
+      # Linux环境使用宿主机IP连接MongoDB
+      # 请根据实际情况修改MONGODB_HOST为您的宿主机IP
+      # 常见选项：172.17.0.1 (Docker默认网关) 或实际局域网IP
+      - MONGODB_URL=mongodb://172.17.0.1:27017
+      - DATABASE_NAME=sql_results
+      - API_HOST=0.0.0.0
+      - API_PORT=18000
+      - ALLOWED_ORIGINS=["http://localhost:13000", "http://localhost:5173", "http://localhost:8080"]
+    extra_hosts:
+      # 添加宿主机映射，172.17.0.1是Docker默认的宿主机网关IP
+      - "host.docker.internal:172.17.0.1"
+    networks:
+      - sql_plan_network
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 18000 --reload
+
+  # 前端服务
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sql_plan_frontend
+    restart: unless-stopped
+    ports:
+      - "13000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:18000
+    depends_on:
+      - backend
+    networks:
+      - sql_plan_network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+networks:
+  sql_plan_network:
+    driver: bridge

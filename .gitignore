@@ -1,7 +1,8 @@
 *pycache*
 *.pyc
 .env
-node_modules/
-docs/
 package-lock.json
+
+docs/
 .vscode/ 
+node_modules/

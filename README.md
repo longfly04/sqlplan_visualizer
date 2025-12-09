@@ -148,7 +148,7 @@ sql_plan_visualizer/
 │   │   └── utils/          # 工具函数
 │   ├── package.json        # Node.js依赖
 │   └── vite.config.ts     # Vite配置
-├── docs/                  # 文档
+├── docs/                  # 文档，开发中
 └── README.md             # 项目说明
 ```
 
@@ -165,7 +165,7 @@ sql_plan_visualizer/
 - `POST /api/settings/test-connection` - 测试MongoDB连接
 
 ### 交互式文档
-访问 http://localhost:8000/docs 查看完整的API文档
+正在开发中...
 
 ## 🎨 设计特色
 
@@ -236,19 +236,6 @@ interface PlanNode {
 - 保持深色主题优先
 - 确保响应式设计兼容性
 
-## 📈 性能优化
-
-### 后端优化
-- MongoDB异步操作
-- 分页查询避免大数据量加载
-- 聚合管道优化统计查询
-- 连接池管理
-
-### 前端优化
-- 组件懒加载
-- 虚拟滚动处理大数据列表
-- 图表渲染优化
-- 缓存策略
 
 ## 🐛 故障排除
 
@@ -295,9 +282,9 @@ interface PlanNode {
 
 本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
 
-## 👥 团队
+## 👥 作者
 
-- **MiniMax Agent** - *初始开发* - [MiniMax](https://minimax.chat)
+LongFly Yu
 
 ## 🙏 致谢
 

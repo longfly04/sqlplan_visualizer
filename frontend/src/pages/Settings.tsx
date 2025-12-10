@@ -19,11 +19,10 @@ import { apiService } from '@/services/api';
 import type { Settings, ConnectionTest } from '@/types';
 
 const { Title } = Typography;
-const { Option } = Select;
 
 const Settings: React.FC = () => {
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [connectionResult, setConnectionResult] = useState<ConnectionTest | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
 

@@ -11,7 +11,7 @@ class PlanParserService:
         """从data列表中提取QUERY PLAN的JSON字符串"""
         for item in data_list:
             if isinstance(item, dict) and "QUERY PLAN" in item:
-                return item["QUERY PLAN"]
+                return item["QUERY PLAN"][0]
         return None
     
     @staticmethod

@@ -2,7 +2,7 @@
 *.pyc
 .env
 package-lock.json
-
+test*
 docs/
 .vscode/ 
 node_modules/

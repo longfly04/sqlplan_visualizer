@@ -16,11 +16,33 @@ const api = axios.create({
   timeout: 30000,
 });
 
+// 请求拦截器
+api.interceptors.request.use(
+  (config) => {
+    console.log('API Request:', config.method?.toUpperCase(), config.url, config.params || config.data);
+    return config;
+  },
+  (error) => {
+    console.error('API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
 // 响应拦截器
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => {
+    console.log('API Response:', response.config.url, response.status, response.data);
+    return response.data;
+  },
   (error) => {
     console.error('API Error:', error);
+    if (error.response) {
+      console.error('Response Error:', error.response.status, error.response.data);
+    } else if (error.request) {
+      console.error('Request Error:', error.request);
+    } else {
+      console.error('Error:', error.message);
+    }
     throw error;
   }
 );

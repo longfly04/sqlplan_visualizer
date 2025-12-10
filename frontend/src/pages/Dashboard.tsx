@@ -32,36 +32,92 @@ const Dashboard: React.FC = () => {
 
   // 加载集合列表
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: any = null;
+    
     const loadCollections = async () => {
       try {
+        console.log('正在加载集合列表...');
         const data = await apiService.getCollections();
-        setCollections(data);
-        if (data.collections.length > 0) {
-          setSelectedCollection(data.collections[0]);
+        console.log('集合列表加载成功:', data);
+        
+        if (isMounted) {
+          setCollections(data);
+          if (data && data.collections && data.collections.length > 0) {
+            setSelectedCollection(data.collections[0]);
+          }
         }
       } catch (err) {
-        setError('加载集合列表失败');
+        console.error('加载集合列表失败:', err);
+        if (isMounted) {
+          setError(`加载集合列表失败: ${err instanceof Error ? err.message : '未知错误'}`);
+        }
       }
     };
+    
+    // 添加超时处理 - 增加到30秒
+    // timeoutId = setTimeout(() => {
+    //   if (isMounted) {
+    //     setError('加载集合列表超时，请检查网络连接');
+    //   }
+    // }, 30000);
+    
     loadCollections();
+    
+    return () => {
+      isMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   // 加载统计信息
   useEffect(() => {
     if (selectedCollection) {
+      let isMounted = true;
+      let timeoutId: any = null;
+      
       const loadStats = async () => {
+        if (!isMounted) return;
+        
         setLoading(true);
         setError('');
         try {
+          console.log('正在加载统计信息，集合:', selectedCollection);
           const data = await apiService.getStatsSummary(selectedCollection);
-          setStats(data);
+          console.log('统计信息加载成功:', data);
+          if (isMounted) {
+            setStats(data);
+          }
         } catch (err) {
-          setError('加载统计信息失败');
+          console.error('加载统计信息失败:', err);
+          if (isMounted) {
+            setError(`加载统计信息失败: ${err instanceof Error ? err.message : '未知错误'}`);
+          }
         } finally {
-          setLoading(false);
+          if (isMounted) {
+            setLoading(false);
+          }
         }
       };
+      
+      // 添加超时处理 - 增加到30秒
+      // timeoutId = setTimeout(() => {
+      //   if (isMounted) {
+      //     setError('加载统计信息超时，请检查网络连接');
+      //     setLoading(false);
+      //   }
+      // }, 30000);
+      
       loadStats();
+      
+      return () => {
+        isMounted = false;
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
     }
   }, [selectedCollection]);
 
@@ -73,89 +129,101 @@ const Dashboard: React.FC = () => {
   const getDistributionChartOption = () => {
     if (!stats?.execution_time_distribution) return {};
 
-    const data = stats.execution_time_distribution.map(item => [
-      item.start,
-      item.count
-    ]);
+    try {
+      const data = stats.execution_time_distribution.map(item => [
+        item.start,
+        item.count,
+        item.end,
+        item.range
+      ]);
 
-    return {
-      title: {
-        text: '执行时间分布',
-        left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-        },
-      },
-      tooltip: {
-        trigger: 'axis',
-        formatter: (params: any) => {
-          const data = params[0];
-          return `时间范围: ${data.name}<br/>数量: ${data.value[1]}`;
-        },
-      },
-      xAxis: {
-        type: 'value',
-        name: '执行时间 (ms)',
-        nameLocation: 'middle',
-        nameGap: 30,
-      },
-      yAxis: {
-        type: 'value',
-        name: '查询数量',
-        nameLocation: 'middle',
-        nameGap: 50,
-      },
-      series: [
-        {
-          type: 'bar',
-          data: data,
-          itemStyle: {
-            color: '#388BFF',
+      return {
+        title: {
+          text: '执行时间分布',
+          left: 'center',
+          textStyle: {
+            fontSize: 16,
+            fontWeight: 'bold',
           },
         },
-      ],
-    };
+        tooltip: {
+          trigger: 'axis',
+          formatter: (params: any) => {
+            const data = params[0];
+            return `执行时间(ms): ${data.value[3]}<br/>数量: ${data.value[1]}`;
+          },
+        },
+        xAxis: {
+          type: 'value',
+          name: '执行时间 (ms)',
+          nameLocation: 'middle',
+          nameGap: 30,
+        },
+        yAxis: {
+          type: 'value',
+          name: '查询数量',
+          nameLocation: 'middle',
+          nameGap: 50,
+        },
+        series: [
+          {
+            type: 'bar',
+            data: data,
+            itemStyle: {
+              color: '#388BFF',
+            },
+          },
+        ],
+      };
+    } catch (error) {
+      console.error('图表配置错误:', error);
+      return {};
+    }
   };
 
   // 执行状态饼图配置
   const getStatusChartOption = () => {
     if (!stats) return {};
 
-    const data = [
-      { value: stats.success_count, name: '成功', itemStyle: { color: '#34D399' } },
-      { value: stats.error_count, name: '失败', itemStyle: { color: '#F87171' } },
-    ];
+    try {
+      const data = [
+        { value: stats.success_count, name: '成功', itemStyle: { color: '#34D399' } },
+        { value: stats.error_count, name: '失败', itemStyle: { color: '#F87171' } },
+      ];
 
-    return {
-      title: {
-        text: '执行状态分布',
-        left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-        },
-      },
-      tooltip: {
-        trigger: 'item',
-        formatter: '{a} <br/>{b}: {c} ({d}%)',
-      },
-      series: [
-        {
-          name: '执行状态',
-          type: 'pie',
-          radius: '50%',
-          data: data,
-          emphasis: {
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.5)',
-            },
+      return {
+        title: {
+          text: '执行状态分布',
+          left: 'center',
+          textStyle: {
+            fontSize: 16,
+            fontWeight: 'bold',
           },
         },
-      ],
-    };
+        tooltip: {
+          trigger: 'item',
+          formatter: '{a} <br/>{b}: {c} ({d}%)',
+        },
+        series: [
+          {
+            name: '执行状态',
+            type: 'pie',
+            radius: '50%',
+            data: data,
+            emphasis: {
+              itemStyle: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)',
+              },
+            },
+          },
+        ],
+      };
+    } catch (error) {
+      console.error('状态图表配置错误:', error);
+      return {};
+    }
   };
 
   return (
@@ -255,6 +323,8 @@ const Dashboard: React.FC = () => {
                 <ReactECharts
                   option={getDistributionChartOption()}
                   style={{ height: '300px' }}
+                  notMerge={true}
+                  lazyUpdate={true}
                 />
               </Card>
             </Col>
@@ -263,6 +333,8 @@ const Dashboard: React.FC = () => {
                 <ReactECharts
                   option={getStatusChartOption()}
                   style={{ height: '300px' }}
+                  notMerge={true}
+                  lazyUpdate={true}
                 />
               </Card>
             </Col>

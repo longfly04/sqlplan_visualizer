@@ -9,10 +9,7 @@ import {
   Drawer,
   Descriptions,
   Tag,
-  Spin,
   Alert,
-  Row,
-  Col,
 } from 'antd';
 import { EyeOutlined, BranchesOutlined } from '@ant-design/icons';
 import Tree from 'react-d3-tree';
@@ -79,7 +76,9 @@ const PlanVisualizer: React.FC = () => {
 
   const handleViewPlan = async (record: SQLExecutionRecord) => {
     try {
+      console.log('正在获取执行计划详情，ID:', record._id, '集合:', selectedCollection);
       const planDetail = await apiService.getPlanDetail(record._id, selectedCollection);
+      console.log('执行计划详情获取成功:', planDetail);
       setSelectedPlan(planDetail);
       
       // 转换执行计划为树状图数据
@@ -88,7 +87,8 @@ const PlanVisualizer: React.FC = () => {
       
       setDrawerVisible(true);
     } catch (err) {
-      setError('获取执行计划详情失败');
+      console.error('获取执行计划详情失败:', err);
+      setError(`获取执行计划详情失败: ${err instanceof Error ? err.message : '未知错误'}`);
     }
   };
 
@@ -98,7 +98,7 @@ const PlanVisualizer: React.FC = () => {
     
     // 创建所有节点
     plan.nodes.forEach(node => {
-      const nodeId = `node_${id(node.raw_data)}`;
+      const nodeId = `node_${node.raw_data._id || Math.random().toString(36).substr(2, 9)}`;
       const treeNode: TreeNode = {
         name: `${node.node_type}`,
         attributes: {
@@ -114,8 +114,8 @@ const PlanVisualizer: React.FC = () => {
 
     // 建立父子关系
     const treeRoots: TreeNode[] = [];
-    plan.nodes.forEach(node => {
-      const nodeId = `node_${id(node.raw_data)}`;
+    plan.nodes.forEach((node, index) => {
+      const nodeId = `node_${index}`;
       const treeNode = nodeMap.get(nodeId)!;
       
       if (node.parent) {
@@ -359,7 +359,7 @@ const PlanVisualizer: React.FC = () => {
                               textAnchor="middle"
                               style={{ fontSize: '10px' }}
                             >
-                              {Object.entries(nodeDatum.attributes).map(([key, value]) => 
+                              {Object.entries(nodeDatum.attributes).map(([key, value]) =>
                                 `${key}: ${value}`
                               ).join(' | ')}
                             </text>
@@ -375,6 +375,21 @@ const PlanVisualizer: React.FC = () => {
                 </div>
               )}
             </Card>
+
+            {/* PEV2 可视化 */}
+            {selectedPlan && (
+              <Card title="PEV2 可视化" style={{ marginTop: '16px' }}>
+                <div style={{ width: '100%', height: '400px', border: '1px solid #E5E7EB' }}>
+                  <iframe
+                    src="https://github.com/dalibo/pev2"
+                    width="100%"
+                    height="100%"
+                    style={{ border: 'none' }}
+                    title="PEV2 可视化工具"
+                  />
+                </div>
+              </Card>
+            )}
           </>
         )}
       </Drawer>

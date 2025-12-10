@@ -12,16 +12,14 @@ import {
   Col,
   Tag,
   DatePicker,
-  Spin,
   Alert,
 } from 'antd';
-import { SearchOutlined, FilterOutlined, ReloadOutlined } from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiService } from '@/services/api';
 import type { CollectionList, SQLExecutionRecord, SearchFilters } from '@/types';
 
 const { Title } = Typography;
 const { Option } = Select;
-const { RangePicker } = DatePicker;
 
 const Search: React.FC = () => {
   const [collections, setCollections] = useState<CollectionList | null>(null);

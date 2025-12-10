@@ -70,7 +70,7 @@ class AnalysisService:
         
         # 计算慢SQL数量（阈值100ms）
         slow_sql_count = await collection.count_documents({
-            "execution_time_ms": {"$gt": 100}
+            "execution_time_ms": {"$gt": 10000}
         })
         
         # 获取执行时间分布

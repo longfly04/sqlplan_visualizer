@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { Layout, Menu, theme, Typography, Space, Button } from 'antd';
+import { Layout, Menu, Typography, Space, Button } from 'antd';
 import {
   DashboardOutlined,
   BranchesOutlined,
   BarChartOutlined,
-  SearchOutlined,
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
@@ -12,11 +11,11 @@ import {
   MoonOutlined,
 } from '@ant-design/icons';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import Dashboard from '@/pages/Dashboard';
+import DashboardBasic from '@/pages/Dashboard';
 import PlanVisualizer from '@/pages/PlanVisualizer';
 import DataAnalysis from '@/pages/DataAnalysis';
-import Search from '@/pages/Search';
 import Settings from '@/pages/Settings';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -42,11 +41,6 @@ const App: React.FC = () => {
       key: '/analysis',
       icon: <BarChartOutlined />,
       label: '数据分析',
-    },
-    {
-      key: '/search',
-      icon: <SearchOutlined />,
-      label: '搜索',
     },
     {
       key: '/settings',
@@ -142,13 +136,14 @@ const App: React.FC = () => {
             minHeight: 'calc(100vh - 112px)',
           }}
         >
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/visualizer" element={<PlanVisualizer />} />
-            <Route path="/analysis" element={<DataAnalysis />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/" element={<DashboardBasic />} />
+              <Route path="/visualizer" element={<PlanVisualizer />} />
+              <Route path="/analysis" element={<DataAnalysis />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+          </ErrorBoundary>
         </Content>
       </Layout>
     </Layout>

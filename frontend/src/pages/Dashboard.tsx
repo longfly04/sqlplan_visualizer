@@ -29,6 +29,7 @@ const Dashboard: React.FC = () => {
   const [stats, setStats] = useState<StatisticsSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // 加载集合列表
   useEffect(() => {
@@ -85,7 +86,12 @@ const Dashboard: React.FC = () => {
         setError('');
         try {
           console.log('正在加载统计信息，集合:', selectedCollection);
-          const data = await apiService.getStatsSummary(selectedCollection);
+          
+          // 获取设置以获取慢SQL阈值
+          const settings = await apiService.getSettings();
+          console.log('获取设置成功:', settings);
+          
+          const data = await apiService.getStatsSummary(selectedCollection, settings.slow_sql_threshold);
           console.log('统计信息加载成功:', data);
           if (isMounted) {
             setStats(data);
@@ -102,6 +108,30 @@ const Dashboard: React.FC = () => {
         }
       };
       
+      // 监听设置变化，重新加载统计
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'sql_plan_visualizer_settings') {
+          console.log('检测到设置变化，重新加载统计');
+          setRefreshKey(prev => prev + 1);
+        }
+      };
+      
+      window.addEventListener('storage', handleStorageChange);
+      
+      // 定期检查设置变化（每5秒）
+      const checkSettingsInterval = setInterval(() => {
+        const currentSettings = localStorage.getItem('sql_plan_visualizer_settings');
+        if (currentSettings) {
+          try {
+            const settings = JSON.parse(currentSettings);
+            console.log('定期检查设置:', settings);
+            setRefreshKey(prev => prev + 1);
+          } catch (err) {
+            console.error('解析设置失败:', err);
+          }
+        }
+      }, 5000);
+      
       // 添加超时处理 - 增加到30秒
       // timeoutId = setTimeout(() => {
       //   if (isMounted) {
@@ -117,9 +147,13 @@ const Dashboard: React.FC = () => {
         if (timeoutId) {
           clearTimeout(timeoutId);
         }
+        window.removeEventListener('storage', handleStorageChange);
+        if (checkSettingsInterval) {
+          clearInterval(checkSettingsInterval);
+        }
       };
     }
-  }, [selectedCollection]);
+  }, [selectedCollection, refreshKey]);
 
   const handleCollectionChange = (value: string) => {
     setSelectedCollection(value);

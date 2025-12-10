@@ -60,11 +60,12 @@ async def get_plans(
 @router.get("/stats/summary", response_model=StatisticsSummary)
 async def get_stats_summary(
     collection: str,
+    slow_sql_threshold: float = 100.0,
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
     """获取聚合统计信息"""
     try:
-        return await AnalysisService.get_collection_stats(db, collection)
+        return await AnalysisService.get_collection_stats(db, collection, slow_sql_threshold)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")
 
@@ -102,7 +103,8 @@ async def get_plan_detail(
             status=record["status"],
             row_count=record["row_count"],
             nodes=nodes,
-            root_node=root_node
+            root_node=root_node,
+            plan_content=query_plan_json
         )
     except HTTPException:
         raise
@@ -136,7 +138,8 @@ async def compare_plans(
                             status=record["status"],
                             row_count=record["row_count"],
                             nodes=nodes,
-                            root_node=root_node
+                            root_node=root_node,
+                            plan_content=query_plan_json  # 添加plan_content字段
                         )
                         plans.append(plan_detail)
         
@@ -181,6 +184,32 @@ async def search_plans(
         return await AnalysisService.search_records(db, collection, filters_dict, page, size)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
+
+@router.get("/settings", response_model=Settings)
+async def get_settings():
+    """获取当前设置"""
+    try:
+        # TODO: 从数据库或配置文件中读取设置
+        # 暂时返回默认设置
+        return Settings(
+            mongodb_url="mongodb://localhost:27017",
+            database_name="sql_results",
+            slow_sql_threshold=100.0,
+            default_collection=None,
+            page_size=20
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取设置失败: {str(e)}")
+
+@router.post("/settings")
+async def save_settings(settings: Settings):
+    """保存设置"""
+    try:
+        # TODO: 保存设置到数据库或配置文件
+        # 暂时只返回成功响应
+        return {"success": True, "message": "设置保存成功"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存设置失败: {str(e)}")
 
 @router.post("/settings/test-connection", response_model=ConnectionTest)
 async def test_connection(

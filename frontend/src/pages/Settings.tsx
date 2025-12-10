@@ -63,27 +63,50 @@ const Settings: React.FC = () => {
     }
   };
 
-  const handleSaveSettings = () => {
-    const formValues = form.getFieldsValue();
-    
-    // 这里应该保存到本地存储或发送到后端
-    message.success('设置已保存');
-    
-    // 示例：保存到localStorage
-    localStorage.setItem('sql_plan_visualizer_settings', JSON.stringify(formValues));
+  const handleSaveSettings = async () => {
+    try {
+      const formValues = form.getFieldsValue();
+      
+      // 保存到后端
+      await apiService.saveSettings(formValues);
+      message.success('设置已保存');
+      
+      // 同时保存到localStorage作为备份
+      localStorage.setItem('sql_plan_visualizer_settings', JSON.stringify(formValues));
+      
+      // 触发storage变化事件，通知其他页面重新加载
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'sql_plan_visualizer_settings'
+      }));
+    } catch (err) {
+      console.error('保存设置失败:', err);
+      message.error('保存设置失败');
+    }
   };
 
-  const handleLoadSettings = () => {
+  const handleLoadSettings = async () => {
     try {
+      // 先尝试从后端加载设置
+      try {
+        const settings = await apiService.getSettings();
+        form.setFieldsValue(settings);
+        message.success('已加载服务器设置');
+        return;
+      } catch (serverErr) {
+        console.log('从服务器加载设置失败，尝试从本地加载:', serverErr);
+      }
+      
+      // 如果服务器加载失败，从localStorage加载
       const saved = localStorage.getItem('sql_plan_visualizer_settings');
       if (saved) {
         const settings = JSON.parse(saved);
         form.setFieldsValue(settings);
-        message.success('已加载保存的设置');
+        message.success('已加载本地保存的设置');
       } else {
         message.info('没有找到保存的设置');
       }
     } catch (err) {
+      console.error('加载设置失败:', err);
       message.error('加载设置失败');
     }
   };

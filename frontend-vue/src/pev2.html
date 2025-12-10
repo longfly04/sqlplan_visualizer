@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PEV2 可视化</title>
+    <link href="https://unpkg.com/bootstrap@5/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/pev2/dist/pev2.umd.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        #app {
+            height: 100vh;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <pev2 :plan-source="plan" :plan-query="query"></pev2>
+    </div>
+ 
+    <script>
+        const { createApp } = Vue;
+        const { Plan } = PEV2;
+ 
+        let planData = null;
+        let queryData = '';
+ 
+        // 从URL参数获取数据（兼容旧的实现）
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlPlan = urlParams.get('plan');
+        const urlQuery = urlParams.get('query');
+        
+        if (urlPlan && urlQuery) {
+            try {
+                planData = JSON.parse(decodeURIComponent(urlPlan));
+                queryData = decodeURIComponent(urlQuery);
+            } catch (error) {
+                console.error('解析URL参数失败:', error);
+            }
+        }
+        
+        console.log('PEV2 初始化，URL数据:', { planData, queryData });
+ 
+        // 监听来自父窗口的消息
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'initPEV2') {
+                try {
+                    planData = event.data.plan;
+                    queryData = event.data.query || '';
+                    console.log('PEV2 接收到postMessage数据:', { planData, queryData });
+                    
+                    // 如果Vue应用已经创建，更新数据
+                    if (window.vueApp) {
+                        window.vueApp.plan = planData;
+                        window.vueApp.query = queryData;
+                    }
+                } catch (error) {
+                    console.error('处理postMessage数据失败:', error);
+                }
+            }
+        });
+ 
+        const app = createApp({
+            components: {
+                pev2: Plan,
+            },
+            data() {
+                return {
+                    plan: planData,
+                    query: queryData,
+                };
+            },
+        });
+        
+        window.vueApp = app.mount('#app');
+    </script>
+</body>
+</html>

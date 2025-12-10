@@ -29,7 +29,7 @@ const PlanVisualizer: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
 
   // 加载集合列表
@@ -69,6 +69,18 @@ const PlanVisualizer: React.FC = () => {
     }
   };
 
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+  };
+
+  const handleShowSizeChange = (current: number, size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
+
   const handleCollectionChange = (value: string) => {
     setSelectedCollection(value);
     setCurrentPage(1);
@@ -86,9 +98,13 @@ const PlanVisualizer: React.FC = () => {
       setTreeData(treeNodes);
       
       setDrawerVisible(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('获取执行计划详情失败:', err);
-      setError(`获取执行计划详情失败: ${err instanceof Error ? err.message : '未知错误'}`);
+      if (err.response) {
+        console.error('错误响应状态:', err.response.status);
+        console.error('错误响应数据:', err.response.data);
+      }
+      setError(`获取执行计划详情失败: ${err.response?.data?.detail || err.message || '未知错误'}`);
     }
   };
 
@@ -264,7 +280,9 @@ const PlanVisualizer: React.FC = () => {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-            onChange: (page) => setCurrentPage(page),
+            onChange: handlePageChange,
+            onShowSizeChange: handleShowSizeChange,
+            pageSizeOptions: ['10', '20', '50', '100'],
           }}
         />
       </Card>
@@ -381,7 +399,7 @@ const PlanVisualizer: React.FC = () => {
               <Card title="PEV2 可视化" style={{ marginTop: '16px' }}>
                 <div style={{ width: '100%', height: '400px', border: '1px solid #E5E7EB' }}>
                   <iframe
-                    src="https://github.com/dalibo/pev2"
+                    src={`/pev2.html?plan=${encodeURIComponent(JSON.stringify(selectedPlan.nodes.map(node => node.raw_data)))}&query=${encodeURIComponent(selectedPlan.sql_content)}`}
                     width="100%"
                     height="100%"
                     style={{ border: 'none' }}

@@ -7,7 +7,7 @@ class AnalysisService:
     """数据分析服务"""
     
     @staticmethod
-    async def get_collection_stats(db: AsyncIOMotorDatabase, collection_name: str) -> StatisticsSummary:
+    async def get_collection_stats(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float = 100.0) -> StatisticsSummary:
         """获取集合统计信息"""
         collection = db[collection_name]
         
@@ -68,9 +68,9 @@ class AnalysisService:
         row_results = await collection.aggregate(row_pipeline).to_list(None)
         total_rows = row_results[0]["total_rows"] if row_results else 0
         
-        # 计算慢SQL数量（阈值100ms）
+        # 计算慢SQL数量
         slow_sql_count = await collection.count_documents({
-            "execution_time_ms": {"$gt": 10000}
+            "execution_time_ms": {"$gt": slow_sql_threshold}
         })
         
         # 获取执行时间分布

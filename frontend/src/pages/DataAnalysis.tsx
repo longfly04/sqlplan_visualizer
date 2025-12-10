@@ -32,7 +32,7 @@ const DataAnalysis: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(20);
   const [total, setTotal] = useState(0);
   
   // 搜索相关状态
@@ -93,6 +93,18 @@ const DataAnalysis: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (page: number, size?: number) => {
+    setCurrentPage(page);
+    if (size && size !== pageSize) {
+      setPageSize(size);
+    }
+  };
+
+  const handleShowSizeChange = (current: number, size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
   };
 
   const handleCollectionChange = (value: string) => {
@@ -463,7 +475,9 @@ const DataAnalysis: React.FC = () => {
             showSizeChanger: true,
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-            onChange: (page) => setCurrentPage(page),
+            onChange: handlePageChange,
+            onShowSizeChange: handleShowSizeChange,
+            pageSizeOptions: ['10', '20', '50', '100'],
           }}
         />
       </Card>

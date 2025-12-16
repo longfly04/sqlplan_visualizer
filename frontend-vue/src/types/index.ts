@@ -42,6 +42,19 @@ export interface StatisticsSummary {
     start: number;
     end: number;
   }>;
+  // 新增字段：FROM表数量和node节点数量统计
+  from_table_distribution: Array<{
+    range: string;
+    count: number;
+  }>;
+  plan_node_distribution: Array<{
+    range: string;
+    count: number;
+  }>;
+  avg_from_tables: number;
+  avg_plan_nodes: number;
+  max_from_tables: number;
+  max_plan_nodes: number;
 }
 
 export interface PlanNode {

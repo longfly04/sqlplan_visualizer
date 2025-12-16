@@ -60,14 +60,14 @@
       <el-loading :loading="true" />
     </div>
 
-    <div v-else-if="stats" ref="statsContainer">
-      <!-- 关键指标卡片 -->
+    <div v-else-if="basicStats" ref="statsContainer">
+      <!-- 基础统计指标（不随阈值变化） -->
       <el-row :gutter="24" style="margin-bottom: 24px">
         <el-col :xs="24" :sm="12" :lg="6">
           <el-card>
             <el-statistic
               title="总查询计划数"
-              :value="stats.total_plans"
+              :value="basicStats.total_plans"
             >
               <template #prefix>
                 <el-icon><Coin /></el-icon>
@@ -78,8 +78,20 @@
         <el-col :xs="24" :sm="12" :lg="6">
           <el-card>
             <el-statistic
+              title="总返回行数"
+              :value="basicStats.total_rows"
+            >
+              <template #prefix>
+                <el-icon><Grid /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12" :lg="6">
+          <el-card>
+            <el-statistic
               title="平均执行时间"
-              :value="parseFloat(stats.avg_execution_time.toFixed(2))"
+              :value="parseFloat(basicStats.avg_execution_time.toFixed(2))"
               suffix="ms"
             >
               <template #prefix>
@@ -91,8 +103,25 @@
         <el-col :xs="24" :sm="12" :lg="6">
           <el-card>
             <el-statistic
+              title="平均返回行数"
+              :value="Math.round(basicStats.total_rows / basicStats.total_plans)"
+            >
+              <template #prefix>
+                <el-icon><DataLine /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <!-- 慢SQL统计指标（随阈值变化） -->
+      <el-row :gutter="24" style="margin-bottom: 24px">
+        <el-col :xs="24" :sm="12" :lg="6">
+          <el-card>
+            <el-statistic
               title="慢SQL数量"
-              :value="stats.slow_sql_count"
+              :value="slowSqlStats?.slow_sql_count || 0"
+              :loading="loadingSlowSql"
             >
               <template #prefix>
                 <el-icon><Warning /></el-icon>
@@ -103,28 +132,13 @@
         <el-col :xs="24" :sm="12" :lg="6">
           <el-card>
             <el-statistic
-              title="总返回行数"
-              :value="stats.total_rows"
+              title="平均执行时间"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.avg_execution_time.toFixed(2)) : 0"
+              suffix="ms"
+              :loading="loadingSlowSql"
             >
               <template #prefix>
-                <el-icon><Grid /></el-icon>
-              </template>
-            </el-statistic>
-          </el-card>
-        </el-col>
-      </el-row>
-
-      <!-- 扩展统计指标 -->
-      <el-row :gutter="24" style="margin-bottom: 24px">
-        <el-col :xs="24" :sm="12" :lg="6">
-          <el-card>
-            <el-statistic
-              title="成功率"
-              :value="parseFloat((stats.success_count / stats.total_plans * 100).toFixed(2))"
-              suffix="%"
-            >
-              <template #prefix>
-                <el-icon><CircleCheck /></el-icon>
+                <el-icon><Timer /></el-icon>
               </template>
             </el-statistic>
           </el-card>
@@ -133,8 +147,9 @@
           <el-card>
             <el-statistic
               title="最大执行时间"
-              :value="parseFloat(stats.max_execution_time.toFixed(2))"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.max_execution_time.toFixed(2)) : 0"
               suffix="ms"
+              :loading="loadingSlowSql"
             >
               <template #prefix>
                 <el-icon><Clock /></el-icon>
@@ -146,8 +161,27 @@
           <el-card>
             <el-statistic
               title="P95执行时间"
-              :value="parseFloat(stats.p95_execution_time.toFixed(2))"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.p95_execution_time.toFixed(2)) : 0"
               suffix="ms"
+              :loading="loadingSlowSql"
+            >
+              <template #prefix>
+                <el-icon><Histogram /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <!-- P95/P99统计信息（替换性能指标对比图表） -->
+      <el-row :gutter="24" style="margin-bottom: 24px">
+        <el-col :xs="24" :sm="12" :lg="6">
+          <el-card>
+            <el-statistic
+              title="P95执行时间"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.p95_execution_time.toFixed(2)) : 0"
+              suffix="ms"
+              :loading="loadingSlowSql"
             >
               <template #prefix>
                 <el-icon><Histogram /></el-icon>
@@ -158,8 +192,36 @@
         <el-col :xs="24" :sm="12" :lg="6">
           <el-card>
             <el-statistic
-              title="平均返回行数"
-              :value="Math.round(stats.total_rows / stats.total_plans)"
+              title="P99执行时间"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.p99_execution_time.toFixed(2)) : 0"
+              suffix="ms"
+              :loading="loadingSlowSql"
+            >
+              <template #prefix>
+                <el-icon><Histogram /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12" :lg="6">
+          <el-card>
+            <el-statistic
+              title="平均FROM表数量"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.avg_from_tables.toFixed(2)) : 0"
+              :loading="loadingSlowSql"
+            >
+              <template #prefix>
+                <el-icon><Grid /></el-icon>
+              </template>
+            </el-statistic>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12" :lg="6">
+          <el-card>
+            <el-statistic
+              title="平均计划节点数"
+              :value="slowSqlStats ? parseFloat(slowSqlStats.avg_plan_nodes.toFixed(2)) : 0"
+              :loading="loadingSlowSql"
             >
               <template #prefix>
                 <el-icon><DataLine /></el-icon>
@@ -179,44 +241,18 @@
                 <span style="margin-left: 8px;">执行时间分布</span>
               </div>
             </template>
-            <div ref="distributionChart" style="height: 300px; width: 100%;"></div>
+            <div ref="distributionChart" style="height: 400px; width: 100%;"></div>
           </el-card>
         </el-col>
-        <el-col :xs="24" :lg="12">
-          <el-card>
-            <template #header>
-              <div style="display: flex; align-items: center;">
-                <el-icon><PieChart /></el-icon>
-                <span style="margin-left: 8px;">执行状态分布</span>
-              </div>
-            </template>
-            <div ref="statusChart" style="height: 300px; width: 100%;"></div>
-          </el-card>
-        </el-col>
-      </el-row>
-
-      <!-- 性能指标图表 -->
-      <el-row :gutter="24" style="margin-top: 24px">
         <el-col :xs="24" :lg="12">
           <el-card>
             <template #header>
               <div style="display: flex; align-items: center;">
                 <el-icon><DataAnalysis /></el-icon>
-                <span style="margin-left: 8px;">性能指标对比</span>
+                <span style="margin-left: 8px;">慢SQL查询基本信息</span>
               </div>
             </template>
-            <div ref="performanceChart" style="height: 300px; width: 100%;"></div>
-          </el-card>
-        </el-col>
-        <el-col :xs="24" :lg="12">
-          <el-card>
-            <template #header>
-              <div style="display: flex; align-items: center;">
-                <el-icon><TrendCharts /></el-icon>
-                <span style="margin-left: 8px;">执行时间趋势</span>
-              </div>
-            </template>
-            <div ref="trendChart" style="height: 300px; width: 100%;"></div>
+            <div ref="queryInfoChart" style="height: 400px; width: 100%;"></div>
           </el-card>
         </el-col>
       </el-row>
@@ -238,19 +274,18 @@ import type { CollectionList, StatisticsSummary } from '@/types'
 
 const collections = ref<CollectionList | null>(null)
 const selectedCollection = ref<string>('')
-const stats = ref<StatisticsSummary | null>(null)
+const basicStats = ref<StatisticsSummary | null>(null)  // 基础统计（不随阈值变化）
+const slowSqlStats = ref<StatisticsSummary | null>(null)  // 慢SQL统计（随阈值变化）
 const loading = ref(false)
+const loadingSlowSql = ref(false)  // 慢SQL统计加载状态
 const error = ref<string>('')
 const refreshKey = ref(0)
 const slowSqlThreshold = ref<number>(1000)
 const distributionChart = ref<HTMLElement>()
-const statusChart = ref<HTMLElement>()
-const performanceChart = ref<HTMLElement>()
-const trendChart = ref<HTMLElement>()
+const queryInfoChart = ref<HTMLElement>()
 let distributionChartInstance: echarts.ECharts | null = null
-let statusChartInstance: echarts.ECharts | null = null
-let performanceChartInstance: echarts.ECharts | null = null
-let trendChartInstance: echarts.ECharts | null = null
+let queryInfoChartInstance: echarts.ECharts | null = null
+let thresholdDebounceTimer: any = null
 
 // 加载集合列表和设置
 onMounted(async () => {
@@ -277,17 +312,51 @@ onMounted(async () => {
   }
 })
 
+// 加载基础统计信息（不随阈值变化）
+const loadBasicStats = async () => {
+  if (!selectedCollection.value) return
+  
+  try {
+    console.log('正在加载基础统计信息，集合:', selectedCollection.value)
+    const data = await apiService.getBasicStats(selectedCollection.value)
+    console.log('基础统计信息加载成功:', data)
+    basicStats.value = data
+  } catch (err: any) {
+    console.error('加载基础统计信息失败:', err)
+    error.value = `加载基础统计信息失败: ${err.response?.data?.detail || err.message || '未知错误'}`
+  }
+}
+
+// 加载慢SQL统计信息（随阈值变化）
+const loadSlowSqlStats = async () => {
+  if (!selectedCollection.value) return
+  
+  loadingSlowSql.value = true
+  try {
+    console.log('正在加载慢SQL统计信息，集合:', selectedCollection.value, '阈值:', slowSqlThreshold.value)
+    const data = await apiService.getSlowSqlStats(selectedCollection.value, slowSqlThreshold.value)
+    console.log('慢SQL统计信息加载成功:', data)
+    slowSqlStats.value = data
+    
+    // 等待DOM更新后更新图表
+    await nextTick()
+    updateCharts()
+  } catch (err: any) {
+    console.error('加载慢SQL统计信息失败:', err)
+    error.value = `加载慢SQL统计信息失败: ${err.response?.data?.detail || err.message || '未知错误'}`
+  } finally {
+    loadingSlowSql.value = false
+  }
+}
+
 // 加载统计信息
 watch([selectedCollection, refreshKey], async () => {
   if (selectedCollection.value) {
     loading.value = true
     error.value = ''
     try {
-      console.log('正在加载统计信息，集合:', selectedCollection.value, '阈值:', slowSqlThreshold.value)
-      
-      const data = await apiService.getStatsSummary(selectedCollection.value, slowSqlThreshold.value)
-      console.log('统计信息加载成功:', data)
-      stats.value = data
+      // 加载基础统计和慢SQL统计
+      await Promise.all([loadBasicStats(), loadSlowSqlStats()])
       
       // 等待DOM更新后初始化图表
       await nextTick()
@@ -324,19 +393,9 @@ onUnmounted(() => {
     distributionChartInstance = null
   }
   
-  if (statusChartInstance) {
-    statusChartInstance.dispose()
-    statusChartInstance = null
-  }
-  
-  if (performanceChartInstance) {
-    performanceChartInstance.dispose()
-    performanceChartInstance = null
-  }
-  
-  if (trendChartInstance) {
-    trendChartInstance.dispose()
-    trendChartInstance = null
+  if (queryInfoChartInstance) {
+    queryInfoChartInstance.dispose()
+    queryInfoChartInstance = null
   }
 })
 
@@ -346,16 +405,8 @@ const handleWindowResize = () => {
     distributionChartInstance.resize()
   }
   
-  if (statusChartInstance) {
-    statusChartInstance.resize()
-  }
-  
-  if (performanceChartInstance) {
-    performanceChartInstance.resize()
-  }
-  
-  if (trendChartInstance) {
-    trendChartInstance.resize()
+  if (queryInfoChartInstance) {
+    queryInfoChartInstance.resize()
   }
 }
 
@@ -366,296 +417,262 @@ const handleCollectionChange = (value: string) => {
 const handleThresholdChange = (value: number) => {
   console.log('慢SQL阈值变更:', value)
   slowSqlThreshold.value = value
-  // 重新加载统计信息
-  refreshKey.value++
+  
+  // 添加防抖机制，避免频繁调用API
+  if (thresholdDebounceTimer) {
+    clearTimeout(thresholdDebounceTimer)
+  }
+  
+  thresholdDebounceTimer = setTimeout(() => {
+    // 只重新加载慢SQL统计，不刷新基础统计
+    loadSlowSqlStats()
+  }, 500) // 500ms防抖
 }
 
 const refreshStats = () => {
   console.log('手动刷新统计信息')
-  refreshKey.value++
+  // 重新加载所有统计
+  loadBasicStats()
+  loadSlowSqlStats()
 }
 
-// 初始化图表
-const initCharts = () => {
-  if (!stats.value) return
-
-  console.log('初始化图表，统计数据:', stats.value)
-
-  // 销毁旧实例
-  if (distributionChartInstance) {
-    distributionChartInstance.dispose()
-    distributionChartInstance = null
-  }
-  
-  if (statusChartInstance) {
-    statusChartInstance.dispose()
-    statusChartInstance = null
-  }
-  
-  if (performanceChartInstance) {
-    performanceChartInstance.dispose()
-    performanceChartInstance = null
-  }
-  
-  if (trendChartInstance) {
-    trendChartInstance.dispose()
-    trendChartInstance = null
-  }
-
-  // 执行时间分布图表
-  if (distributionChart.value && stats.value.execution_time_distribution && stats.value.execution_time_distribution.length > 0) {
-    try {
-      distributionChartInstance = echarts.init(distributionChart.value)
-      
-      const distributionOption = {
-        grid: {
-          left: '10%',
-          right: '10%',
-          bottom: '15%',
-          top: '10%',
-          containLabel: true
-        },
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: {
-            type: 'shadow'
-          },
-          formatter: (params: any) => {
-            const data = params[0]
-            if (stats.value && stats.value.execution_time_distribution && stats.value.execution_time_distribution[data.dataIndex]) {
-              const rangeData = stats.value.execution_time_distribution[data.dataIndex]
-              return `执行时间范围: ${rangeData.range}<br/>数量: ${data.value}`
-            }
-            return `数量: ${data.value}`
-          },
-        },
-        xAxis: {
-          type: 'category',
-          name: '执行时间范围',
-          nameLocation: 'middle',
-          nameGap: 30,
-          data: stats.value.execution_time_distribution.map(item => item.range),
-          axisLabel: {
-            formatter: '{value}',
-            rotate: 45
-          }
-        },
-        yAxis: {
-          type: 'value',
-          name: '查询数量',
-          nameLocation: 'middle',
-          nameGap: 50,
-          axisLabel: {
-            formatter: '{value}'
-          }
-        },
-        series: [
-          {
-            type: 'bar',
-            data: stats.value.execution_time_distribution.map(item => item.count),
-            itemStyle: {
-              color: '#388BFF',
-            },
-            barWidth: '60%'
-          },
-        ],
-      }
-      
-      distributionChartInstance.setOption(distributionOption)
-      console.log('执行时间分布图表初始化成功')
-    } catch (error) {
-      console.error('执行时间分布图表初始化失败:', error)
+const initCharts = async () => {
+  try {
+    if (!slowSqlStats.value) {
+      console.log('慢SQL统计数据为空，跳过图表初始化')
+      return
     }
+
+    console.log('开始初始化图表，慢SQL统计数据:', slowSqlStats.value)
+
+    // 销毁旧实例
+    destroyAllCharts()
+    
+    // 等待DOM更新完成，确保容器元素可用
+    await nextTick()
+    
+    // 延迟一点确保DOM完全渲染
+    await new Promise(resolve => setTimeout(resolve, 50))
+    
+    // 重新初始化所有图表
+    initDistributionChart()
+    initQueryInfoChart()
+    
+    console.log('所有图表初始化完成')
+  } catch (error) {
+    console.error('初始化图表时发生错误:', error)
+  }
+}
+
+// 更新图表数据（用于局部刷新）
+const updateCharts = () => {
+  try {
+    if (!slowSqlStats.value) {
+      console.log('慢SQL统计数据为空，跳过图表更新')
+      return
+    }
+
+    console.log('更新图表数据:', slowSqlStats.value)
+    
+    // 更新所有图表
+    updateDistributionChart()
+    updateQueryInfoChart()
+    
+    console.log('所有图表更新完成')
+  } catch (error) {
+    console.error('更新图表时发生错误:', error)
+  }
+}
+
+// 统一的图表销毁函数
+const destroyAllCharts = () => {
+  try {
+    if (distributionChartInstance) {
+      distributionChartInstance.dispose()
+      distributionChartInstance = null
+    }
+  } catch (error) {
+    console.warn('销毁distributionChart时出错:', error)
+  }
+  
+  try {
+    if (queryInfoChartInstance) {
+      queryInfoChartInstance.dispose()
+      queryInfoChartInstance = null
+    }
+  } catch (error) {
+    console.warn('销毁queryInfoChart时出错:', error)
+  }
+}
+
+// 初始化执行时间分布图表（拉长布局）
+const initDistributionChart = () => {
+  if (!distributionChart.value || !slowSqlStats.value?.execution_time_distribution || slowSqlStats.value.execution_time_distribution.length === 0) {
+    console.log('执行时间分布图表容器或数据不完整，跳过初始化')
+    return
   }
 
-  // 执行状态饼图
-  if (statusChart.value && (stats.value.success_count > 0 || stats.value.error_count > 0)) {
-    try {
-      statusChartInstance = echarts.init(statusChart.value)
-      
-      const data = [
-        { value: stats.value.success_count, name: '成功', itemStyle: { color: '#34D399' } },
-        { value: stats.value.error_count, name: '失败', itemStyle: { color: '#F87171' } },
+  try {
+    distributionChartInstance = echarts.init(distributionChart.value)
+    
+    const distributionOption = {
+      grid: {
+        left: '10%',
+        right: '10%',
+        bottom: '15%',
+        top: '10%',
+        containLabel: true
+      },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: (params: any) => {
+          const data = params[0]
+          if (slowSqlStats.value && slowSqlStats.value.execution_time_distribution && slowSqlStats.value.execution_time_distribution[data.dataIndex]) {
+            const rangeData = slowSqlStats.value.execution_time_distribution[data.dataIndex]
+            return `执行时间范围: ${rangeData.range}<br/>数量: ${data.value}`
+          }
+          return `数量: ${data.value}`
+        },
+      },
+      xAxis: {
+        type: 'category',
+        name: '执行时间 (ms)',
+        nameLocation: 'middle',
+        nameGap: 30,
+        data: slowSqlStats.value.execution_time_distribution.map(item => item.range),
+        axisLabel: {
+          formatter: '{value}',
+          rotate: 45
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'SQL数量',
+        nameLocation: 'middle',
+        nameGap: 50,
+        axisLabel: {
+          formatter: '{value}'
+        }
+      },
+      series: [
+        {
+          type: 'bar',
+          data: slowSqlStats.value.execution_time_distribution.map(item => item.count),
+          itemStyle: {
+            color: '#388BFF',
+          },
+          barWidth: '60%'
+        },
+      ],
+    }
+    
+    distributionChartInstance.setOption(distributionOption)
+    console.log('执行时间分布图表初始化成功')
+  } catch (error) {
+    console.error('执行时间分布图表初始化失败:', error)
+  }
+}
+
+// 初始化慢SQL查询基本信息图表
+const initQueryInfoChart = () => {
+  if (!queryInfoChart.value || !slowSqlStats.value) {
+    console.log('慢SQL查询基本信息图表容器或数据不存在，跳过初始化')
+    return
+  }
+
+  try {
+    queryInfoChartInstance = echarts.init(queryInfoChart.value)
+    
+    // 准备数据：FROM表数量分布和计划节点数量分布
+    const fromTableData = slowSqlStats.value.from_table_distribution || []
+    const planNodeData = slowSqlStats.value.plan_node_distribution || []
+    
+    const queryInfoOption = {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        }
+      },
+      legend: {
+        data: ['FROM表数量', '计划节点数量']
+      },
+      grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        data: Array.from(new Set([
+          ...fromTableData.map(item => item.range),
+          ...planNodeData.map(item => item.range)
+        ])).sort((a, b) => parseInt(a) - parseInt(b)),
+        axisLabel: {
+          rotate: 0
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'SQL数量'
+      },
+      series: [
+        {
+          name: 'FROM表数量',
+          type: 'bar',
+          data: fromTableData.map(item => item.count),
+          itemStyle: {
+            color: '#5470c6'
+          }
+        },
+        {
+          name: '计划节点数量',
+          type: 'bar',
+          data: planNodeData.map(item => item.count),
+          itemStyle: {
+            color: '#91cc75'
+          }
+        }
       ]
-
-      const statusOption = {
-        tooltip: {
-          trigger: 'item',
-          formatter: '{a} <br/>{b}: {c} ({d}%)',
-        },
-        legend: {
-          orient: 'vertical',
-          left: 'left'
-        },
-        series: [
-          {
-            name: '执行状态',
-            type: 'pie',
-            radius: ['40%', '70%'],
-            center: ['50%', '50%'],
-            data: data,
-            emphasis: {
-              itemStyle: {
-                shadowBlur: 10,
-                shadowOffsetX: 0,
-                shadowColor: 'rgba(0, 0, 0, 0.5)',
-              },
-            },
-            label: {
-              show: true,
-              formatter: '{b}: {c} ({d}%)'
-            }
-          },
-        ],
-      }
-      
-      statusChartInstance.setOption(statusOption)
-      console.log('执行状态饼图初始化成功')
-    } catch (error) {
-      console.error('执行状态饼图初始化失败:', error)
     }
+    
+    queryInfoChartInstance.setOption(queryInfoOption)
+    console.log('慢SQL查询基本信息图表初始化成功')
+  } catch (error) {
+    console.error('慢SQL查询基本信息图表初始化失败:', error)
   }
+}
 
-  // 性能指标对比图表
-  if (performanceChart.value) {
-    try {
-      performanceChartInstance = echarts.init(performanceChart.value)
-      
-      const performanceOption = {
-        tooltip: {
-          trigger: 'axis',
-          axisPointer: {
-            type: 'shadow'
-          }
-        },
-        legend: {
-          data: ['执行时间']
-        },
-        grid: {
-          left: '3%',
-          right: '4%',
-          bottom: '3%',
-          containLabel: true
-        },
-        xAxis: {
-          type: 'category',
-          data: ['平均', '最大', '最小', 'P95', 'P99'],
-          axisLabel: {
-            rotate: 0
-          }
-        },
-        yAxis: {
-          type: 'value',
-          name: '执行时间 (ms)'
-        },
-        series: [
-          {
-            name: '执行时间',
-            type: 'bar',
-            data: [
-              stats.value.avg_execution_time,
-              stats.value.max_execution_time,
-              stats.value.min_execution_time,
-              stats.value.p95_execution_time,
-              stats.value.p99_execution_time
-            ],
-            itemStyle: {
-              color: function(params: any) {
-                const colors = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de']
-                return colors[params.dataIndex]
-              }
-            },
-            label: {
-              show: true,
-              position: 'top',
-              formatter: '{c} ms'
-            }
-          }
-        ]
-      }
-      
-      performanceChartInstance.setOption(performanceOption)
-      console.log('性能指标对比图表初始化成功')
-    } catch (error) {
-      console.error('性能指标对比图表初始化失败:', error)
-    }
+// 更新图表数据的具体实现函数
+const updateDistributionChart = () => {
+  if (distributionChartInstance && slowSqlStats.value?.execution_time_distribution) {
+    distributionChartInstance.setOption({
+      series: [{
+        data: slowSqlStats.value.execution_time_distribution.map(item => item.count)
+      }]
+    })
   }
+}
 
-  // 执行时间趋势图表（模拟数据，实际应该从后端获取时间序列数据）
-  if (trendChart.value) {
-    try {
-      trendChartInstance = echarts.init(trendChart.value)
-      
-      // 生成模拟的时序数据
-      const timeData = []
-      const avgTimeData = []
-      const maxTimeData = []
-      
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date()
-        date.setDate(date.getDate() - i)
-        timeData.push(date.toLocaleDateString())
-        
-        // 模拟数据，实际应该从后端获取
-        avgTimeData.push(stats.value.avg_execution_time + Math.random() * 100 - 50)
-        maxTimeData.push(stats.value.max_execution_time + Math.random() * 200 - 100)
-      }
-      
-      const trendOption = {
-        tooltip: {
-          trigger: 'axis'
+const updateQueryInfoChart = () => {
+  if (queryInfoChartInstance && slowSqlStats.value) {
+    const fromTableData = slowSqlStats.value.from_table_distribution || []
+    const planNodeData = slowSqlStats.value.plan_node_distribution || []
+    
+    queryInfoChartInstance.setOption({
+      series: [
+        {
+          data: fromTableData.map(item => item.count)
         },
-        legend: {
-          data: ['平均执行时间', '最大执行时间']
-        },
-        grid: {
-          left: '3%',
-          right: '4%',
-          bottom: '3%',
-          containLabel: true
-        },
-        xAxis: {
-          type: 'category',
-          boundaryGap: false,
-          data: timeData
-        },
-        yAxis: {
-          type: 'value',
-          name: '执行时间 (ms)'
-        },
-        series: [
-          {
-            name: '平均执行时间',
-            type: 'line',
-            smooth: true,
-            data: avgTimeData,
-            lineStyle: {
-              color: '#5470c6'
-            },
-            itemStyle: {
-              color: '#5470c6'
-            }
-          },
-          {
-            name: '最大执行时间',
-            type: 'line',
-            smooth: true,
-            data: maxTimeData,
-            lineStyle: {
-              color: '#ee6666'
-            },
-            itemStyle: {
-              color: '#ee6666'
-            }
-          }
-        ]
-      }
-      
-      trendChartInstance.setOption(trendOption)
-      console.log('执行时间趋势图表初始化成功')
-    } catch (error) {
-      console.error('执行时间趋势图表初始化失败:', error)
-    }
+        {
+          data: planNodeData.map(item => item.count)
+        }
+      ]
+    })
   }
 }
 </script>

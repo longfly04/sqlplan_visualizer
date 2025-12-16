@@ -41,6 +41,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      'pev2': resolve(__dirname, './third_party/dist/pev2.es.js'),
+      'pev2-css': resolve(__dirname, './third_party/dist/pev2.css'),
     }
+  },
+  optimizeDeps: {
+    include: ['pev2'],
+    exclude: ['pev2-css']
   }
 })

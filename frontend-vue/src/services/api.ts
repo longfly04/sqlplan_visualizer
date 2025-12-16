@@ -64,7 +64,28 @@ export const apiService = {
     });
   },
 
-  // 获取统计摘要
+  // 获取基础统计（不依赖阈值）
+  getBasicStats(collection: string): Promise<StatisticsSummary> {
+    return api.get('/stats/basic', {
+      params: { collection }
+    });
+  },
+
+  // 获取慢SQL统计（依赖阈值）
+  getSlowSqlStats(collection: string, slowSqlThreshold: number): Promise<StatisticsSummary> {
+    return api.get('/stats/slow-sql', {
+      params: { collection, slow_sql_threshold: slowSqlThreshold }
+    });
+  },
+
+  // 获取慢SQL列表数据（用于趋势图表）
+  getSlowSqlList(collection: string, slowSqlThreshold: number, limit: number = 50): Promise<any> {
+    return api.get('/stats/slow-sql-list', {
+      params: { collection, slow_sql_threshold: slowSqlThreshold, limit }
+    });
+  },
+
+  // 获取统计摘要（向后兼容）
   getStatsSummary(collection: string, slowSqlThreshold?: number): Promise<StatisticsSummary> {
     const params: any = { collection };
     if (slowSqlThreshold !== undefined) {

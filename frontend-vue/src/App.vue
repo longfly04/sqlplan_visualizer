@@ -72,11 +72,6 @@
   </el-container>
 </template>
 
-<!-- Bootstrap CSS for PEV2 -->
-<link
-  href="https://unpkg.com/bootstrap@5/dist/css/bootstrap.min.css"
-  rel="stylesheet"
-/>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'

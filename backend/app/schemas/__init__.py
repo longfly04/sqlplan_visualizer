@@ -47,6 +47,13 @@ class StatisticsSummary(BaseModel):
     total_rows: int = Field(..., description="总返回行数")
     slow_sql_count: int = Field(..., description="慢SQL数量")
     execution_time_distribution: List[Dict[str, Any]] = Field(..., description="执行时间分布")
+    # 新增字段：FROM表数量和node节点数量统计
+    from_table_distribution: List[Dict[str, Any]] = Field(default_factory=list, description="FROM表数量分布")
+    plan_node_distribution: List[Dict[str, Any]] = Field(default_factory=list, description="执行计划节点数量分布")
+    avg_from_tables: float = Field(default=0, description="平均FROM表数量")
+    avg_plan_nodes: float = Field(default=0, description="平均计划节点数量")
+    max_from_tables: int = Field(default=0, description="最大FROM表数量")
+    max_plan_nodes: int = Field(default=0, description="最大计划节点数量")
 
 class PlanNode(BaseModel):
     """执行计划节点"""
@@ -68,7 +75,7 @@ class PlanDetail(BaseModel):
     status: StatusEnum = Field(..., description="状态")
     row_count: int = Field(..., description="返回行数")
     nodes: List[PlanNode] = Field(..., description="节点列表")
-    root_node: str = Field(..., description="根节点ID"),
+    root_node: str = Field(..., description="根节点ID")
     plan_content: str = Field(..., description='查询执行计划的文本')
 
 class ComparisonData(BaseModel):

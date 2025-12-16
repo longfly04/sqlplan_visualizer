@@ -69,6 +69,42 @@ async def get_stats_summary(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取统计信息失败: {str(e)}")
 
+@router.get("/stats/basic", response_model=StatisticsSummary)
+async def get_basic_stats(
+    collection: str,
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """获取基础统计信息（不依赖阈值）"""
+    try:
+        return await AnalysisService.get_basic_collection_stats(db, collection)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取基础统计信息失败: {str(e)}")
+
+@router.get("/stats/slow-sql", response_model=StatisticsSummary)
+async def get_slow_sql_stats(
+    collection: str,
+    slow_sql_threshold: float = 100.0,
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """获取慢SQL统计信息（依赖阈值）"""
+    try:
+        return await AnalysisService.get_slow_sql_stats(db, collection, slow_sql_threshold)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取慢SQL统计信息失败: {str(e)}")
+
+@router.get("/stats/slow-sql-list")
+async def get_slow_sql_list(
+    collection: str,
+    slow_sql_threshold: float = 100.0,
+    limit: int = 50,
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """获取慢SQL列表数据（用于趋势图表）"""
+    try:
+        return await AnalysisService.get_slow_sql_list(db, collection, slow_sql_threshold, limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取慢SQL列表失败: {str(e)}")
+
 @router.get("/plans/{plan_id}/detail")
 async def get_plan_detail(
     plan_id: str,

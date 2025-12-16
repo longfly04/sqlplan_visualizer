@@ -21,12 +21,12 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/pev2/:id',
-    name: 'PEV2Visualizer',
-    component: () => import('@/pages/PEV2Visualizer.vue'),
+    path: '/pev2-viewer',
+    name: 'PEV2Viewer',
+    component: () => import('@/pages/PEV2Viewer.vue'),
     meta: {
-      title: 'PEV2执行计划可视化',
-      icon: 'Share'
+      title: '查询计划可视化',
+      icon: 'View'
     }
   },
   {
@@ -42,7 +42,15 @@ const routes: RouteRecordRaw[] = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  // 添加路由守卫，确保路由切换时正确处理
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { top: 0 }
+    }
+  }
 })
 
 export default router

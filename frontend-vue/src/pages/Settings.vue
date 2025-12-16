@@ -55,38 +55,59 @@
 
             <el-divider />
 
-            <!-- 应用配置 -->
+            <!-- 数据库连接配置管理 -->
             <h4 style="margin-bottom: 16px;">
               <el-space>
-                <el-icon><Lightning /></el-icon>
-                应用配置
+                <el-icon><Setting /></el-icon>
+                数据库连接配置管理
               </el-space>
             </h4>
 
             <el-row :gutter="16">
-              <el-col :xs="24" :sm="12">
-                <el-form-item
-                  label="慢SQL阈值 (ms)"
-                  prop="slow_sql_threshold"
-                >
-                  <el-input-number
-                    v-model="form.slow_sql_threshold"
-                    :min="0"
+              <el-col :xs="24" :sm="8">
+                <el-form-item>
+                  <el-button
+                    type="primary"
+                    @click="handleExportConfig"
+                    :disabled="!form.mongodb_url"
                     style="width: 100%"
-                  />
+                  >
+                    <el-icon><Download /></el-icon>
+                    导出配置
+                  </el-button>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12">
-                <el-form-item
-                  label="默认分页大小"
-                  prop="page_size"
-                >
-                  <el-input-number
-                    v-model="form.page_size"
-                    :min="1"
-                    :max="100"
+              <el-col :xs="24" :sm="8">
+                <el-form-item>
+                  <el-upload
+                    ref="uploadRef"
+                    :auto-upload="false"
+                    :show-file-list="false"
+                    accept=".json"
+                    @change="handleImportConfig"
                     style="width: 100%"
-                  />
+                  >
+                    <el-button
+                      type="success"
+                      style="width: 100%"
+                    >
+                      <el-icon><Upload /></el-icon>
+                      导入配置
+                    </el-button>
+                  </el-upload>
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="8">
+                <el-form-item>
+                  <el-button
+                    type="warning"
+                    @click="handleSaveConfig"
+                    :loading="loading"
+                    style="width: 100%"
+                  >
+                    <el-icon><DocumentAdd /></el-icon>
+                    保存配置
+                  </el-button>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -167,9 +188,11 @@
               系统会自动列出数据库中的所有集合，您可以选择要分析的数据集合。
             </p>
 
-            <h4 style="color: #e4e4e7; margin-bottom: 8px;">慢SQL阈值：</h4>
+            <h4 style="color: #e4e4e7; margin-bottom: 8px;">配置管理：</h4>
             <p>
-              用于统计和标识执行时间超过此阈值的SQL查询，单位为毫秒。
+              • 导出配置：将当前数据库连接配置保存为JSON文件<br/>
+              • 导入配置：从JSON文件加载数据库连接配置<br/>
+              • 保存配置：创建配置文件的备份副本
             </p>
           </div>
         </el-card>
@@ -181,11 +204,12 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Coin, Lightning, Setting, SuccessFilled, CircleCloseFilled } from '@element-plus/icons-vue'
+import { Coin, Lightning, Setting, SuccessFilled, CircleCloseFilled, Download, Upload, DocumentAdd } from '@element-plus/icons-vue'
 import { apiService } from '@/services/api'
 import type { Settings, ConnectionTest } from '@/types'
 
 const formRef = ref()
+const uploadRef = ref()
 const loading = ref(false)
 const connectionResult = ref<ConnectionTest | null>(null)
 const testingConnection = ref(false)
@@ -193,7 +217,7 @@ const testingConnection = ref(false)
 const form = reactive<Settings>({
   mongodb_url: 'mongodb://localhost:27017',
   database_name: 'sql_results',
-  slow_sql_threshold: 100,
+  slow_sql_threshold: 1000,
   default_collection: '',
   page_size: 20,
 })
@@ -205,14 +229,6 @@ const rules = {
   ],
   database_name: [
     { required: true, message: '请输入数据库名称' }
-  ],
-  slow_sql_threshold: [
-    { required: true, message: '请输入慢SQL阈值' },
-    { type: 'number', min: 0, message: '阈值必须大于0' }
-  ],
-  page_size: [
-    { required: true, message: '请输入分页大小' },
-    { type: 'number', min: 1, max: 100, message: '分页大小必须在1-100之间' }
   ]
 }
 
@@ -310,6 +326,103 @@ const handleResetSettings = () => {
   }).catch(() => {
     // 用户取消
   })
+}
+
+// 导出配置
+const handleExportConfig = () => {
+  try {
+    const config = {
+      mongodb_url: form.mongodb_url,
+      database_name: form.database_name,
+      default_collection: form.default_collection,
+      export_time: new Date().toISOString(),
+      version: '1.0'
+    }
+    
+    const dataStr = JSON.stringify(config, null, 2)
+    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(dataBlob)
+    link.download = `mongodb_config_${new Date().getTime()}.json`
+    link.click()
+    
+    URL.revokeObjectURL(link.href)
+    ElMessage.success('配置导出成功')
+  } catch (error) {
+    console.error('导出配置失败:', error)
+    ElMessage.error('导出配置失败')
+  }
+}
+
+// 导入配置
+const handleImportConfig = (file: any) => {
+  try {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const config = JSON.parse(content)
+        
+        // 验证配置格式
+        if (!config.mongodb_url || !config.database_name) {
+          ElMessage.error('配置文件格式不正确，缺少必要字段')
+          return
+        }
+        
+        // 应用导入的配置
+        form.mongodb_url = config.mongodb_url
+        form.database_name = config.database_name
+        if (config.default_collection !== undefined) {
+          form.default_collection = config.default_collection
+        }
+        
+        ElMessage.success('配置导入成功')
+      } catch (parseError) {
+        console.error('解析配置文件失败:', parseError)
+        ElMessage.error('配置文件格式错误，无法解析')
+      }
+    }
+    
+    reader.onerror = () => {
+      ElMessage.error('读取配置文件失败')
+    }
+    
+    reader.readAsText(file.raw)
+  } catch (error) {
+    console.error('导入配置失败:', error)
+    ElMessage.error('导入配置失败')
+  }
+}
+
+// 保存配置到文件
+const handleSaveConfig = async () => {
+  try {
+    // 验证表单
+    await formRef.value.validate()
+    
+    const config = {
+      mongodb_url: form.mongodb_url,
+      database_name: form.database_name,
+      default_collection: form.default_collection,
+      save_time: new Date().toISOString(),
+      version: '1.0'
+    }
+    
+    const dataStr = JSON.stringify(config, null, 2)
+    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(dataBlob)
+    link.download = `mongodb_config_backup_${new Date().getTime()}.json`
+    link.click()
+    
+    URL.revokeObjectURL(link.href)
+    ElMessage.success('配置保存成功')
+  } catch (error) {
+    console.error('保存配置失败:', error)
+    ElMessage.error('保存配置失败')
+  }
 }
 </script>
 

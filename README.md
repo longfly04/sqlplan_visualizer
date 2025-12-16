@@ -10,6 +10,36 @@
 - 🔎 **全文搜索**: 支持SQL内容和文件名的全文检索及高级筛选
 - ⚙️ **灵活配置**: 支持MongoDB连接配置和应用参数设置
 
+## 🚀 快速开始 (Docker 部署)
+
+### 使用 Docker Compose 一键启动
+
+```bash
+# 1. 克隆项目
+git clone <your-repo-url>
+cd sqlplan_visualizer
+
+# 2. 一键启动所有服务
+./start.sh
+
+# 或者手动启动
+docker-compose up --build -d
+```
+
+### 访问地址
+- **前端界面**: http://localhost:3000
+- **后端API**: http://localhost:8000
+- **API文档**: http://localhost:8000/docs
+
+### 停止服务
+```bash
+./stop.sh
+# 或者
+docker-compose down
+```
+
+📖 详细的部署指南请参考 [Docker-Deployment.md](Docker-Deployment.md)
+
 ## 🏗️ 技术架构
 
 ### 后端 (Backend)
@@ -275,10 +305,13 @@ interface PlanNode {
 - 修复查询解析逻辑
 
 
-### v0.1.0 (2015-12-16)
+### v0.1.1 (2025-12-16)
 - 完善了pev2组件的嵌入问题，目前可以正常跳转并全屏显示可视化界面
 - 去除了冗余功能以及不完善的功能
 - 优化的代码目录结构
+
+### v0.1.2 (2025-12-16)
+- 修复了docker-compose中的问题
 
 ## 🤝 贡献指南
 

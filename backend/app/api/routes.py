@@ -1,10 +1,11 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from typing import List
+from typing import List, Optional
 from app.core.database import db_config
 from app.services.analysis import AnalysisService
 from app.schemas import (
-    CollectionList, StatisticsSummary, 
+    CollectionList, StatisticsSummary,
     SearchFilters, PlanDetail, ComparisonData, Settings, ConnectionTest
 )
 from app.services.plan_parser import PlanParserService
@@ -119,18 +120,21 @@ async def get_plan_detail(
             raise HTTPException(status_code=404, detail="查询计划不存在")
         
         # 解析执行计划
-        query_plan_json = PlanParserService.extract_query_plan_json(record["data"])
-        if not query_plan_json:
+        parsed_plan = PlanParserService.extract_query_plan_json(record)
+        if not parsed_plan:
             raise HTTPException(status_code=400, detail="无法找到执行计划数据")
         
         # 解析JSON
-        parsed_plan = PlanParserService.parse_json_string(query_plan_json)
+        parsed_plan = PlanParserService.parse_json_string(parsed_plan)
         if not parsed_plan:
             raise HTTPException(status_code=400, detail="执行计划JSON解析失败")
         
         # 提取节点
         nodes = PlanParserService.parse_execution_plan(parsed_plan)
         root_node = PlanParserService.find_root_node(nodes)
+        
+        # 将计划转换为JSON字符串以便存储到PlanContent
+        plan_content = json.dumps(parsed_plan, ensure_ascii=False)
         
         return PlanDetail(
             plan_id=plan_id,
@@ -140,7 +144,7 @@ async def get_plan_detail(
             row_count=record["row_count"],
             nodes=nodes,
             root_node=root_node,
-            plan_content=query_plan_json
+            plan_content=plan_content
         )
     except HTTPException:
         raise
@@ -160,12 +164,16 @@ async def compare_plans(
             # 这里复用get_plan_detail的逻辑
             record = await AnalysisService.get_record_detail(db, collection, plan_id)
             if record:
-                query_plan_json = PlanParserService.extract_query_plan_json(record["data"])
+                query_plan_json = PlanParserService.extract_query_plan_json(record)
                 if query_plan_json:
                     parsed_plan = PlanParserService.parse_json_string(query_plan_json)
+                    
                     if parsed_plan:
                         nodes = PlanParserService.parse_execution_plan(parsed_plan)
                         root_node = PlanParserService.find_root_node(nodes)
+                        
+                        # 将计划转换为JSON字符串以便存储到PlanContent
+                        plan_content = json.dumps(parsed_plan, ensure_ascii=False)
                         
                         plan_detail = PlanDetail(
                             plan_id=plan_id,
@@ -175,7 +183,7 @@ async def compare_plans(
                             row_count=record["row_count"],
                             nodes=nodes,
                             root_node=root_node,
-                            plan_content=query_plan_json  # 添加plan_content字段
+                            plan_content=plan_content
                         )
                         plans.append(plan_detail)
         
@@ -260,3 +268,19 @@ async def test_connection(
             return ConnectionTest(success=False, message="连接失败")
     except Exception as e:
         return ConnectionTest(success=False, message=f"连接测试异常: {str(e)}")
+
+@router.get("/stats/script-names")
+async def get_script_names_by_range(
+    collection: str,
+    range_type: str,  # 'execution_time', 'from_table', 'plan_node'
+    range_value: str,
+    slow_sql_threshold: Optional[float] = None,
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """获取指定范围内的SQL脚本名称列表"""
+    try:
+        return await AnalysisService.get_sql_script_names_by_range(
+            db, collection, range_type, range_value, slow_sql_threshold
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取脚本名称列表失败: {str(e)}")

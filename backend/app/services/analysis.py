@@ -12,7 +12,7 @@ class AnalysisService:
     _cache_ttl = 300  # 缓存5分钟
     
     @staticmethod
-    def _get_cache_key(collection_name: str, threshold: float = None, is_basic: bool = False) -> str:
+    def _get_cache_key(collection_name: str, threshold: Optional[float] = None, is_basic: bool = False) -> str:
         """生成缓存键"""
         if is_basic:
             return f"{collection_name}_basic"
@@ -40,7 +40,7 @@ class AnalysisService:
         }
     
     @staticmethod
-    async def get_collection_stats(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float = 100.0) -> StatisticsSummary:
+    async def get_collection_stats(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float = 100.0) -> 'StatisticsSummary':
         """获取集合统计信息"""
         collection = db[collection_name]
         
@@ -75,6 +75,7 @@ class AnalysisService:
         ]
         time_results = await collection.aggregate(time_pipeline).to_list(None)
         
+        all_times = []
         if time_results:
             time_data = time_results[0]
             avg_time = time_data["avg_time"]
@@ -107,7 +108,7 @@ class AnalysisService:
         })
         
         # 获取执行时间分布
-        execution_time_distribution = AnalysisService._get_time_distribution(all_times if time_results else [])
+        execution_time_distribution = AnalysisService._get_time_distribution(all_times)
         
         return StatisticsSummary(
             total_plans=total_count,
@@ -124,7 +125,7 @@ class AnalysisService:
         )
     
     @staticmethod
-    async def get_basic_collection_stats(db: AsyncIOMotorDatabase, collection_name: str) -> StatisticsSummary:
+    async def get_basic_collection_stats(db: AsyncIOMotorDatabase, collection_name: str) -> 'StatisticsSummary':
         """获取基础统计信息（不依赖阈值）"""
         
         # 检查缓存
@@ -207,7 +208,7 @@ class AnalysisService:
         return result
 
     @staticmethod
-    async def get_slow_sql_stats(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float) -> StatisticsSummary:
+    async def get_slow_sql_stats(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float) -> 'StatisticsSummary':
         """获取慢SQL统计信息（依赖阈值）"""
         
         # 检查缓存
@@ -350,10 +351,10 @@ class AnalysisService:
     
     @staticmethod
     async def _get_from_table_stats(collection, query: dict) -> Dict[str, Any]:
-        """获取FROM表数量统计"""
+        """获取FROM表数量统计 - 直接读取数据库中的table_count字段"""
         try:
-            # 获取所有匹配的文档
-            cursor = collection.find(query, {"sql_content": 1})
+            # 直接从数据库读取table_count字段，不进行复杂的SQL解析
+            cursor = collection.find(query, {"table_count": 1})
             docs = await cursor.to_list(None)
             
             if not docs:
@@ -365,11 +366,10 @@ class AnalysisService:
             
             from_table_counts = []
             
-            # 解析每个SQL语句中的FROM表数量
+            # 直接读取table_count字段
             for doc in docs:
-                sql_content = doc.get("sql_content", "")
-                from_table_count = AnalysisService._count_from_tables(sql_content)
-                from_table_counts.append(from_table_count)
+                table_count = doc.get("table_count", 0)
+                from_table_counts.append(table_count)
             
             if not from_table_counts:
                 return {
@@ -407,10 +407,10 @@ class AnalysisService:
     
     @staticmethod
     async def _get_plan_node_stats(collection, query: dict) -> Dict[str, Any]:
-        """获取计划节点数量统计"""
+        """获取计划节点数量统计 - 直接读取数据库中的sql_plan_metrics.nodes字段"""
         try:
-            # 获取所有匹配的文档
-            cursor = collection.find(query, {"data": 1})
+            # 直接从数据库读取sql_plan_metrics字段
+            cursor = collection.find(query, {"sql_plan_metrics": 1})
             docs = await cursor.to_list(None)
             
             if not docs:
@@ -422,10 +422,17 @@ class AnalysisService:
             
             plan_node_counts = []
             
-            # 解析每个文档中的执行计划节点数量
+            # 直接读取sql_plan_metrics.nodes字段
             for doc in docs:
-                data = doc.get("data", [])
-                node_count = AnalysisService._count_plan_nodes(data)
+                sql_plan_metrics = doc.get("sql_plan_metrics", {})
+                if isinstance(sql_plan_metrics, dict) and "nodes" in sql_plan_metrics:
+                    nodes = sql_plan_metrics["nodes"]
+                    if isinstance(nodes, list):
+                        node_count = len(nodes)
+                    else:
+                        node_count = 0
+                else:
+                    node_count = 0
                 plan_node_counts.append(node_count)
             
             if not plan_node_counts:
@@ -571,8 +578,8 @@ class AnalysisService:
     
     @staticmethod
     async def search_records(
-        db: AsyncIOMotorDatabase, 
-        collection_name: str, 
+        db: 'AsyncIOMotorDatabase',
+        collection_name: str,
         filters: Dict[str, Any],
         page: int = 1,
         size: int = 20
@@ -622,7 +629,7 @@ class AnalysisService:
         }
     
     @staticmethod
-    async def get_record_detail(db: AsyncIOMotorDatabase, collection_name: str, record_id: str) -> Optional[Dict[str, Any]]:
+    async def get_record_detail(db: AsyncIOMotorDatabase, collection_name: str, record_id: str) -> 'Optional[Dict[str, Any]]':
         """获取记录详情"""
         from bson.objectid import ObjectId
         
@@ -635,7 +642,7 @@ class AnalysisService:
             return None
 
     @staticmethod
-    async def get_slow_sql_list(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float, limit: int = 50) -> Dict[str, Any]:
+    async def get_slow_sql_list(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float, limit: int = 50) -> 'Dict[str, Any]':
         """获取慢SQL列表数据（用于趋势图表）"""
         collection = db[collection_name]
         
@@ -669,4 +676,61 @@ class AnalysisService:
             "data": chart_data,
             "total": len(chart_data),
             "threshold": slow_sql_threshold
+        }
+    
+    @staticmethod
+    async def get_sql_script_names_by_range(
+        db: 'AsyncIOMotorDatabase',
+        collection_name: str,
+        range_type: str,  # 'execution_time', 'from_table', 'plan_node'
+        range_value: str,
+        slow_sql_threshold: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """获取指定范围内的SQL脚本名称列表"""
+        collection = db[collection_name]
+        
+        # 构建查询条件
+        query = {}
+        if slow_sql_threshold:
+            query["execution_time_ms"] = {"$gt": slow_sql_threshold}
+        
+        # 根据range_type添加不同的筛选条件
+        if range_type == "execution_time":
+            # 解析执行时间范围
+            if "-" in range_value:
+                start, end = range_value.split("-")
+                start_time = float(start)
+                end_time = float(end)
+                query["execution_time_ms"] = {
+                    "$gte": start_time,
+                    "$lte": end_time
+                }
+        elif range_type == "from_table":
+            # 筛选FROM表数量
+            table_count = int(range_value)
+            query["table_count"] = table_count
+        elif range_type == "plan_node":
+            # 筛选计划节点数量
+            node_count = int(range_value)
+            query["sql_plan_metrics.nodes"] = {"$exists": True}
+            # 这里需要额外处理，因为MongoDB不能直接查询数组长度
+        
+        # 获取匹配的文档
+        cursor = collection.find(query, {"file_name": 1, "sql_content": 1}).limit(10)
+        docs = await cursor.to_list(None)
+        
+        script_names = []
+        for doc in docs:
+            file_name = doc.get("file_name", "Unknown")
+            sql_content = doc.get("sql_content", "")
+            # 简化SQL内容显示，取前50个字符
+            sql_preview = sql_content[:50] + "..." if len(sql_content) > 50 else sql_content
+            script_names.append({
+                "file_name": file_name,
+                "sql_preview": sql_preview
+            })
+        
+        return {
+            "scripts": script_names,
+            "total": len(script_names)
         }

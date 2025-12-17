@@ -11,6 +11,8 @@ export interface SQLExecutionRecord {
   timestamp: number;
   save_time?: string;
   sql_content: string;
+  sql_plan?: string;
+  table_count?: number;
 }
 
 export interface CollectionList {

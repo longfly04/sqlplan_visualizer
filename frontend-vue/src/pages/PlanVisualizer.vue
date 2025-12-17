@@ -102,12 +102,30 @@
         </el-table-column>
         
         <el-table-column
-          prop="row_count"
-          label="返回行数"
-          width="120"
+          prop="sql_plan"
+          label="SQL执行计划"
+          min-width="200"
+          show-overflow-tooltip
+          resizable
+        >
+          <template #default="{ row }">
+            <div class="sql-plan-content" :data-plan="row.sql_plan">
+              {{ row.sql_plan || '无执行计划' }}
+            </div>
+          </template>
+        </el-table-column>
+        
+        <el-table-column
+          prop="table_count"
+          label="表数量"
+          width="100"
           sortable
           resizable
-        />
+        >
+          <template #default="{ row }">
+            {{ row.table_count || 0 }}
+          </template>
+        </el-table-column>
         
         <el-table-column
           prop="status"
@@ -189,6 +207,37 @@ const total = ref(0)
 const searchQuery = ref('')
 const searchStatus = ref<'all' | 'success' | 'error'>('all')
 
+// 动态调整tooltip样式
+const adjustTooltipStyles = () => {
+  setTimeout(() => {
+    const tooltips = document.querySelectorAll('.el-tooltip__popper')
+    tooltips.forEach(tooltip => {
+      const content = tooltip.querySelector('.el-tooltip__content')
+      if (content) {
+        // 强制设置样式
+        ;(content as HTMLElement).style.maxHeight = '120px'
+        ;(content as HTMLElement).style.overflowY = 'auto'
+        ;(content as HTMLElement).style.overflowX = 'hidden'
+        ;(content as HTMLElement).style.wordBreak = 'break-word'
+        ;(content as HTMLElement).style.whiteSpace = 'pre-wrap'
+        ;(content as HTMLElement).style.padding = '8px 12px'
+        ;(content as HTMLElement).style.lineHeight = '1.4'
+        ;(content as HTMLElement).style.fontSize = '12px'
+        ;(content as HTMLElement).style.backgroundColor = '#fff'
+        ;(content as HTMLElement).style.color = '#333'
+        ;(content as HTMLElement).style.border = '1px solid #ddd'
+        ;(content as HTMLElement).style.borderRadius = '4px'
+        ;(content as HTMLElement).style.boxShadow = '0 2px 12px 0 rgba(0, 0, 0, 0.1)'
+        ;(content as HTMLElement).style.maxWidth = '600px'
+      }
+      
+      // 设置容器样式
+      ;(tooltip as HTMLElement).style.maxWidth = '600px'
+      ;(tooltip as HTMLElement).style.zIndex = '999999'
+    })
+  }, 100)
+}
+
 // 加载集合列表
 onMounted(async () => {
   try {
@@ -197,8 +246,24 @@ onMounted(async () => {
     if (data.collections.length > 0) {
       selectedCollection.value = data.collections[0]
     }
+    
+    // 延迟执行tooltip样式调整，确保DOM完全加载
+    setTimeout(() => {
+      adjustTooltipStyles()
+    }, 500)
+    
   } catch (err: any) {
     error.value = '加载集合列表失败'
+  }
+})
+
+// 监听页面变化，重新调整tooltip样式
+watch([selectedCollection, currentPage], async () => {
+  if (selectedCollection.value) {
+    // 数据加载完成后调整tooltip样式
+    setTimeout(() => {
+      adjustTooltipStyles()
+    }, 300)
   }
 })
 
@@ -335,6 +400,14 @@ const handleViewPlan = (record: SQLExecutionRecord) => {
 
 .sql-content {
   max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: break-all;
+}
+
+.sql-plan-content {
+  max-width: 300px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

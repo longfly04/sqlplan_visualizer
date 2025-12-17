@@ -75,7 +75,7 @@ class PlanDetail(BaseModel):
     status: StatusEnum = Field(..., description="状态")
     row_count: int = Field(..., description="返回行数")
     nodes: List[PlanNode] = Field(..., description="节点列表")
-    root_node: str = Field(..., description="根节点ID")
+    root_node: Optional[str] = Field(None, description="根节点ID")
     plan_content: str = Field(..., description='查询执行计划的文本')
 
 class ComparisonData(BaseModel):

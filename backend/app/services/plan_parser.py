@@ -1,26 +1,43 @@
 import json
 import re
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from app.schemas import PlanNode, PlanDetail
 
 class PlanParserService:
     """执行计划解析服务"""
     
     @staticmethod
-    def extract_query_plan_json(data_list: List[Dict[str, Any]]) -> Optional[str]:
-        """从data列表中提取QUERY PLAN的JSON字符串"""
-        for item in data_list:
-            if isinstance(item, dict) and "QUERY PLAN" in item:
-                plan_data = item["QUERY PLAN"][0]
-                # 如果已经是字典，转换为JSON字符串
-                if isinstance(plan_data, dict):
-                    return json.dumps(plan_data, ensure_ascii=False)
-                return plan_data
+    def extract_query_plan_json(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """从记录中提取sql_plan字段的JSON字符串"""
+            
+        # 直接从sql_plan字段获取数据
+        sql_plan = record.get("sql_plan")
+        # if sql_plan is None:
+        #     return None
+            
+        # 如果sql_plan是字典，转换为JSON字符串
+        # if isinstance(sql_plan, dict):
+        #     return json.dumps(sql_plan, ensure_ascii=False)
+        
+        # 如果sql_plan已经是字符串，直接返回
+        # if isinstance(sql_plan, str):
+        #     return sql_plan
+        
+        if isinstance(sql_plan, list):
+            return sql_plan[0]
+            
         return None
     
     @staticmethod
-    def parse_json_string(json_str: str) -> Optional[Dict[str, Any]]:
+    def parse_json_string(content: Union[str, Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """解析JSON字符串，处理可能的格式问题"""
+        if isinstance(content, dict):
+            return content
+
+        if not isinstance(content, str):
+            return None
+
+        json_str = content
         try:
             # 尝试直接解析
             return json.loads(json_str)

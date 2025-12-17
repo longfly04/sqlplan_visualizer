@@ -1,0 +1,68 @@
+/* 自定义tooltip样式 - 全局应用 */
+
+/* 使用最强选择器确保样式生效 */
+html .el-tooltip__popper {
+  max-width: 600px !important;
+  z-index: 999999 !important;
+}
+
+html .el-tooltip__popper .el-tooltip__content {
+  max-height: 120px !important; /* 约5行的高度 */
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  padding: 8px 12px !important;
+  line-height: 1.4 !important;
+  font-size: 12px !important;
+  background: #fff !important;
+  color: #333 !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !important;
+  max-width: 600px !important;
+}
+
+/* 自定义滚动条样式 */
+html .el-tooltip__popper .el-tooltip__content::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+html .el-tooltip__popper .el-tooltip__content::-webkit-scrollbar-track {
+  background: #f1f1f1 !important;
+  border-radius: 3px !important;
+}
+
+html .el-tooltip__popper .el-tooltip__content::-webkit-scrollbar-thumb {
+  background: #c1c1c1 !important;
+  border-radius: 3px !important;
+}
+
+html .el-tooltip__popper .el-tooltip__content::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8 !important;
+}
+
+/* Element Plus特定选择器 */
+body .el-tooltip__popper,
+#app .el-tooltip__popper {
+  max-width: 600px !important;
+  z-index: 999999 !important;
+}
+
+body .el-tooltip__popper .el-tooltip__content,
+#app .el-tooltip__popper .el-tooltip__content {
+  max-height: 120px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  word-break: break-word !important;
+  white-space: pre-wrap !important;
+  padding: 8px 12px !important;
+  line-height: 1.4 !important;
+  font-size: 12px !important;
+  background: #fff !important;
+  color: #333 !important;
+  border: 1px solid #ddd !important;
+  border-radius: 4px !important;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1) !important;
+  max-width: 600px !important;
+}

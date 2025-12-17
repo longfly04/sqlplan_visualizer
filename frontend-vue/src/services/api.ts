@@ -141,6 +141,20 @@ export const apiService = {
   // 测试连接
   testConnection(settings: Settings): Promise<ConnectionTest> {
     return api.post('/settings/test-connection', settings);
+  },
+
+  // 获取指定范围内的SQL脚本名称列表
+  getScriptNamesByRange(
+    collection: string,
+    rangeType: 'execution_time' | 'from_table' | 'plan_node',
+    rangeValue: string,
+    slowSqlThreshold?: number
+  ): Promise<{scripts: Array<{file_name: string, sql_preview: string}>, total: number}> {
+    const params: any = { collection, range_type: rangeType, range_value: rangeValue };
+    if (slowSqlThreshold !== undefined) {
+      params.slow_sql_threshold = slowSqlThreshold;
+    }
+    return api.get('/stats/script-names', { params });
   }
 };
 

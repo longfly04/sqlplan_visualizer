@@ -245,15 +245,30 @@
           </el-card>
         </el-col>
         <el-col :xs="24" :lg="12">
-          <el-card>
-            <template #header>
-              <div style="display: flex; align-items: center;">
-                <el-icon><DataAnalysis /></el-icon>
-                <span style="margin-left: 8px;">慢SQL查询基本信息</span>
-              </div>
-            </template>
-            <div ref="queryInfoChart" style="height: 400px; width: 100%;"></div>
-          </el-card>
+          <el-row :gutter="16">
+            <el-col :xs="24" :sm="12">
+              <el-card>
+                <template #header>
+                  <div style="display: flex; align-items: center;">
+                    <el-icon><Grid /></el-icon>
+                    <span style="margin-left: 8px;">FROM表数量分布</span>
+                  </div>
+                </template>
+                <div ref="fromTableChart" style="height: 400px; width: 100%;"></div>
+              </el-card>
+            </el-col>
+            <el-col :xs="24" :sm="12">
+              <el-card>
+                <template #header>
+                  <div style="display: flex; align-items: center;">
+                    <el-icon><DataLine /></el-icon>
+                    <span style="margin-left: 8px;">计划节点数量分布</span>
+                  </div>
+                </template>
+                <div ref="planNodeChart" style="height: 400px; width: 100%;"></div>
+              </el-card>
+            </el-col>
+          </el-row>
         </el-col>
       </el-row>
     </div>
@@ -283,8 +298,17 @@ const refreshKey = ref(0)
 const slowSqlThreshold = ref<number>(1000)
 const distributionChart = ref<HTMLElement>()
 const queryInfoChart = ref<HTMLElement>()
+// 新增的图表引用
+const fromTableChart = ref<HTMLElement>()
+const planNodeChart = ref<HTMLElement>()
+// 缓存的脚本名称数据和加载状态
+const scriptNamesCache = ref<Map<string, Array<{file_name: string, sql_preview: string}>>>(new Map())
+const loadingStates = ref<Map<string, boolean>>(new Map())
 let distributionChartInstance: echarts.ECharts | null = null
 let queryInfoChartInstance: echarts.ECharts | null = null
+// 新增的图表实例
+let fromTableChartInstance: echarts.ECharts | null = null
+let planNodeChartInstance: echarts.ECharts | null = null
 let thresholdDebounceTimer: any = null
 
 // 加载集合列表和设置
@@ -341,6 +365,7 @@ const loadSlowSqlStats = async () => {
     // 等待DOM更新后更新图表
     await nextTick()
     updateCharts()
+    
   } catch (err: any) {
     console.error('加载慢SQL统计信息失败:', err)
     error.value = `加载慢SQL统计信息失败: ${err.response?.data?.detail || err.message || '未知错误'}`
@@ -408,6 +433,14 @@ const handleWindowResize = () => {
   if (queryInfoChartInstance) {
     queryInfoChartInstance.resize()
   }
+  
+  if (fromTableChartInstance) {
+    fromTableChartInstance.resize()
+  }
+  
+  if (planNodeChartInstance) {
+    planNodeChartInstance.resize()
+  }
 }
 
 const handleCollectionChange = (value: string) => {
@@ -436,6 +469,78 @@ const refreshStats = () => {
   loadSlowSqlStats()
 }
 
+// 按需加载指定范围内的SQL脚本名称
+const getScriptNamesForRange = async (rangeType: 'execution_time' | 'from_table' | 'plan_node', rangeValue: string): Promise<Array<{file_name: string, sql_preview: string}>> => {
+  const cacheKey = `${rangeType}_${rangeValue}_${slowSqlThreshold.value}`
+  
+  // 如果已有缓存，直接返回
+  const cached = scriptNamesCache.value.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+  
+  // 如果正在加载中，返回空数组
+  if (loadingStates.value.get(cacheKey)) {
+    return []
+  }
+  
+  // 如果没有数据且没有在加载，则开始加载
+  return await loadScriptNames(rangeType, rangeValue, cacheKey)
+}
+
+// 实际加载脚本名称的函数
+const loadScriptNames = async (rangeType: 'execution_time' | 'from_table' | 'plan_node', rangeValue: string, cacheKey: string): Promise<Array<{file_name: string, sql_preview: string}>> => {
+  if (!selectedCollection.value) return []
+  
+  try {
+    // 设置加载状态
+    loadingStates.value.set(cacheKey, true)
+    
+    const response = await apiService.getScriptNamesByRange(
+      selectedCollection.value,
+      rangeType,
+      rangeValue,
+      slowSqlThreshold.value
+    )
+    
+    const scripts = response.scripts || []
+    scriptNamesCache.value.set(cacheKey, scripts)
+    
+    return scripts
+  } catch (error) {
+    console.error('获取脚本名称失败:', error)
+    scriptNamesCache.value.set(cacheKey, [])
+    return []
+  } finally {
+    // 清除加载状态
+    loadingStates.value.delete(cacheKey)
+  }
+}
+
+// 防抖加载函数（避免频繁触发）
+const debouncedLoad = (() => {
+  const timers = new Map<string, NodeJS.Timeout>()
+  
+  return (rangeType: 'execution_time' | 'from_table' | 'plan_node', rangeValue: string, delay: number = 300) => {
+    const cacheKey = `${rangeType}_${rangeValue}_${slowSqlThreshold.value}`
+    
+    // 清除之前的定时器
+    if (timers.has(cacheKey)) {
+      clearTimeout(timers.get(cacheKey)!)
+    }
+    
+    // 设置新的定时器
+    const timer = setTimeout(async () => {
+      timers.delete(cacheKey)
+      await getScriptNamesForRange(rangeType, rangeValue)
+      // 触发图表更新
+      updateCharts()
+    }, delay)
+    
+    timers.set(cacheKey, timer)
+  }
+})()
+
 const initCharts = async () => {
   try {
     if (!slowSqlStats.value) {
@@ -456,7 +561,8 @@ const initCharts = async () => {
     
     // 重新初始化所有图表
     initDistributionChart()
-    initQueryInfoChart()
+    initFromTableChart()
+    initPlanNodeChart()
     
     console.log('所有图表初始化完成')
   } catch (error) {
@@ -476,7 +582,8 @@ const updateCharts = () => {
     
     // 更新所有图表
     updateDistributionChart()
-    updateQueryInfoChart()
+    updateFromTableChart()
+    updatePlanNodeChart()
     
     console.log('所有图表更新完成')
   } catch (error) {
@@ -502,6 +609,24 @@ const destroyAllCharts = () => {
     }
   } catch (error) {
     console.warn('销毁queryInfoChart时出错:', error)
+  }
+  
+  try {
+    if (fromTableChartInstance) {
+      fromTableChartInstance.dispose()
+      fromTableChartInstance = null
+    }
+  } catch (error) {
+    console.warn('销毁fromTableChart时出错:', error)
+  }
+  
+  try {
+    if (planNodeChartInstance) {
+      planNodeChartInstance.dispose()
+      planNodeChartInstance = null
+    }
+  } catch (error) {
+    console.warn('销毁planNodeChart时出错:', error)
   }
 }
 
@@ -532,7 +657,33 @@ const initDistributionChart = () => {
           const data = params[0]
           if (slowSqlStats.value && slowSqlStats.value.execution_time_distribution && slowSqlStats.value.execution_time_distribution[data.dataIndex]) {
             const rangeData = slowSqlStats.value.execution_time_distribution[data.dataIndex]
-            return `执行时间范围: ${rangeData.range}<br/>数量: ${data.value}`
+            const cacheKey = `execution_time_${rangeData.range}_${slowSqlThreshold.value}`
+            const scriptNames = scriptNamesCache.value.get(cacheKey) || []
+            const isLoading = loadingStates.value.get(cacheKey) || false
+            
+            // 调试信息
+            console.log(`[Debug] 执行时间分布 - 范围: ${rangeData.range}, 显示数值: ${data.value}, 实际数值: ${rangeData.count}`)
+            
+            let tooltipText = `执行时间范围: ${rangeData.range}<br/>数量: ${rangeData.count}<br/>`
+            
+            if (scriptNames.length > 0) {
+              tooltipText += 'SQL脚本名称:<br/>'
+              const displayNames = scriptNames.slice(0, 5)
+              displayNames.forEach((script: any) => {
+                tooltipText += `• ${script.file_name}<br/>`
+              })
+              if (scriptNames.length > 5) {
+                tooltipText += `... 其他${scriptNames.length - 5}个<br/>`
+              }
+            } else if (isLoading) {
+              tooltipText += 'SQL脚本名称: (加载中...)<br/>'
+            } else {
+              tooltipText += 'SQL脚本名称: (悬停加载)<br/>'
+              // 触发按需加载
+              debouncedLoad('execution_time', rangeData.range)
+            }
+            
+            return tooltipText
           }
           return `数量: ${data.value}`
         },
@@ -576,74 +727,247 @@ const initDistributionChart = () => {
   }
 }
 
-// 初始化慢SQL查询基本信息图表
-const initQueryInfoChart = () => {
-  if (!queryInfoChart.value || !slowSqlStats.value) {
-    console.log('慢SQL查询基本信息图表容器或数据不存在，跳过初始化')
+// 初始化FROM表数量柱状图
+const initFromTableChart = () => {
+  if (!fromTableChart.value || !slowSqlStats.value) {
+    console.log('FROM表数量图表容器或数据不存在，跳过初始化')
     return
   }
 
   try {
-    queryInfoChartInstance = echarts.init(queryInfoChart.value)
+    fromTableChartInstance = echarts.init(fromTableChart.value)
     
-    // 准备数据：FROM表数量分布和计划节点数量分布
     const fromTableData = slowSqlStats.value.from_table_distribution || []
-    const planNodeData = slowSqlStats.value.plan_node_distribution || []
     
-    const queryInfoOption = {
+    // 解析range为数值，用于排序
+    const parseRangeValue = (range: string) => {
+      if (range.includes('-')) {
+        return parseInt(range.split('-')[0])
+      }
+      return parseInt(range)
+    }
+    
+    // 重新映射数据并按FROM表数量排序
+    const sortedData = fromTableData
+      .map(item => ({
+        range: item.range,
+        count: item.count,
+        rangeValue: parseRangeValue(item.range)
+      }))
+      .sort((a, b) => a.rangeValue - b.rangeValue)
+    
+    const categories = sortedData.map(item => item.range) // FROM表数量范围作为类别
+    const values = sortedData.map(item => item.count) // SQL查询数量作为值
+    
+    const fromTableOption = {
       tooltip: {
         trigger: 'axis',
         axisPointer: {
           type: 'shadow'
+        },
+        formatter: (params: any) => {
+          const param = params[0]
+          const fromTableRange = param.axisValue // FROM表数量范围
+          const sqlCount = param.value // SQL查询数量
+          
+          // 直接使用fromTableRange作为rangeValue，确保数据匹配正确
+          const rangeValue = fromTableRange
+          const cacheKey = `from_table_${rangeValue}_${slowSqlThreshold.value}`
+          const scriptNames = scriptNamesCache.value.get(cacheKey) || []
+          const isLoading = loadingStates.value.get(cacheKey) || false
+          
+          // 调试信息：确保数据映射正确
+          console.log(`[Debug] FROM表数量柱状 - FROM表范围: ${fromTableRange}, SQL数量: ${sqlCount}, 脚本数量: ${scriptNames.length}`)
+          
+          let tooltipText = `FROM表数量: ${fromTableRange}<br/>SQL查询数量: ${sqlCount}<br/>`
+          
+          if (scriptNames.length === 0 && !isLoading) {
+            tooltipText += 'SQL脚本名称: (悬停加载)<br/>'
+            // 触发按需加载
+            debouncedLoad('from_table', rangeValue)
+          } else if (isLoading) {
+            tooltipText += 'SQL脚本名称: (加载中...)<br/>'
+          } else if (scriptNames.length === 0) {
+            tooltipText += 'SQL脚本名称: 无<br/>'
+          } else {
+            tooltipText += 'SQL脚本名称:<br/>'
+            const displayNames = scriptNames.slice(0, 5)
+            displayNames.forEach((script: any) => {
+              tooltipText += `• ${script.file_name}<br/>`
+            })
+            if (scriptNames.length > 5) {
+              tooltipText += `... 其他${scriptNames.length - 5}个<br/>`
+            }
+          }
+          
+          return tooltipText
         }
       },
-      legend: {
-        data: ['FROM表数量', '计划节点数量']
-      },
       grid: {
-        left: '3%',
-        right: '4%',
-        bottom: '3%',
+        left: '10%',
+        right: '10%',
+        bottom: '15%',
+        top: '10%',
         containLabel: true
       },
       xAxis: {
         type: 'category',
-        data: Array.from(new Set([
-          ...fromTableData.map(item => item.range),
-          ...planNodeData.map(item => item.range)
-        ])).sort((a, b) => parseInt(a) - parseInt(b)),
+        name: 'FROM表数量',
+        nameLocation: 'middle',
+        nameGap: 30,
+        data: categories,
         axisLabel: {
-          rotate: 0
+          rotate: 45
         }
       },
       yAxis: {
         type: 'value',
-        name: 'SQL数量'
+        name: 'SQL查询数量',
+        nameLocation: 'middle',
+        nameGap: 50,
+        axisLabel: {
+          formatter: '{value}'
+        }
       },
       series: [
         {
-          name: 'FROM表数量',
+          name: 'FROM表数量分布',
           type: 'bar',
-          data: fromTableData.map(item => item.count),
+          data: values,
           itemStyle: {
             color: '#5470c6'
-          }
-        },
-        {
-          name: '计划节点数量',
-          type: 'bar',
-          data: planNodeData.map(item => item.count),
-          itemStyle: {
-            color: '#91cc75'
-          }
+          },
+          barWidth: '60%'
         }
       ]
     }
     
-    queryInfoChartInstance.setOption(queryInfoOption)
-    console.log('慢SQL查询基本信息图表初始化成功')
+    fromTableChartInstance.setOption(fromTableOption)
+    console.log('FROM表数量柱状图初始化成功')
   } catch (error) {
-    console.error('慢SQL查询基本信息图表初始化失败:', error)
+    console.error('FROM表数量柱状图初始化失败:', error)
+  }
+}
+
+// 初始化计划节点数量柱状图
+const initPlanNodeChart = () => {
+  if (!planNodeChart.value || !slowSqlStats.value) {
+    console.log('计划节点数量图表容器或数据不存在，跳过初始化')
+    return
+  }
+
+  try {
+    planNodeChartInstance = echarts.init(planNodeChart.value)
+    
+    const planNodeData = slowSqlStats.value.plan_node_distribution || []
+    
+    // 解析range为数值，用于排序
+    const parseRangeValue = (range: string) => {
+      if (range.includes('-')) {
+        return parseInt(range.split('-')[0])
+      }
+      return parseInt(range)
+    }
+    
+    // 重新映射数据并按计划节点数量排序
+    const sortedData = planNodeData
+      .map(item => ({
+        range: item.range,
+        count: item.count,
+        rangeValue: parseRangeValue(item.range)
+      }))
+      .sort((a, b) => a.rangeValue - b.rangeValue)
+    
+    const categories = sortedData.map(item => item.range) // 计划节点数量范围作为类别
+    const values = sortedData.map(item => item.count) // SQL查询数量作为值
+    
+    const planNodeOption = {
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'shadow'
+        },
+        formatter: (params: any) => {
+          const param = params[0]
+          const planNodeRange = param.axisValue // 计划节点数量范围
+          const sqlCount = param.value // SQL查询数量
+          
+          // 直接使用planNodeRange作为rangeValue，确保数据匹配正确
+          const rangeValue = planNodeRange
+          const cacheKey = `plan_node_${rangeValue}_${slowSqlThreshold.value}`
+          const scriptNames = scriptNamesCache.value.get(cacheKey) || []
+          const isLoading = loadingStates.value.get(cacheKey) || false
+          
+          // 调试信息：确保数据映射正确
+          console.log(`[Debug] 计划节点数量柱状 - 计划节点范围: ${planNodeRange}, SQL数量: ${sqlCount}, 脚本数量: ${scriptNames.length}`)
+          
+          let tooltipText = `计划节点数量: ${planNodeRange}<br/>SQL查询数量: ${sqlCount}<br/>`
+          
+          if (scriptNames.length === 0 && !isLoading) {
+            tooltipText += 'SQL脚本名称: (悬停加载)<br/>'
+            // 触发按需加载
+            debouncedLoad('plan_node', rangeValue)
+          } else if (isLoading) {
+            tooltipText += 'SQL脚本名称: (加载中...)<br/>'
+          } else if (scriptNames.length === 0) {
+            tooltipText += 'SQL脚本名称: 无<br/>'
+          } else {
+            tooltipText += 'SQL脚本名称:<br/>'
+            const displayNames = scriptNames.slice(0, 5)
+            displayNames.forEach((script: any) => {
+              tooltipText += `• ${script.file_name}<br/>`
+            })
+            if (scriptNames.length > 5) {
+              tooltipText += `... 其他${scriptNames.length - 5}个<br/>`
+            }
+          }
+          
+          return tooltipText
+        }
+      },
+      grid: {
+        left: '10%',
+        right: '10%',
+        bottom: '15%',
+        top: '10%',
+        containLabel: true
+      },
+      xAxis: {
+        type: 'category',
+        name: '计划节点数量',
+        nameLocation: 'middle',
+        nameGap: 30,
+        data: categories,
+        axisLabel: {
+          rotate: 45
+        }
+      },
+      yAxis: {
+        type: 'value',
+        name: 'SQL查询数量',
+        nameLocation: 'middle',
+        nameGap: 50,
+        axisLabel: {
+          formatter: '{value}'
+        }
+      },
+      series: [
+        {
+          name: '计划节点数量分布',
+          type: 'bar',
+          data: values,
+          itemStyle: {
+            color: '#91cc75'
+          },
+          barWidth: '60%'
+        }
+      ]
+    }
+    
+    planNodeChartInstance.setOption(planNodeOption)
+    console.log('计划节点数量柱状图初始化成功')
+  } catch (error) {
+    console.error('计划节点数量柱状图初始化失败:', error)
   }
 }
 
@@ -658,20 +982,72 @@ const updateDistributionChart = () => {
   }
 }
 
-const updateQueryInfoChart = () => {
-  if (queryInfoChartInstance && slowSqlStats.value) {
+const updateFromTableChart = () => {
+  if (fromTableChartInstance && slowSqlStats.value) {
     const fromTableData = slowSqlStats.value.from_table_distribution || []
+    
+    // 解析range为数值，用于排序
+    const parseRangeValue = (range: string) => {
+      if (range.includes('-')) {
+        return parseInt(range.split('-')[0])
+      }
+      return parseInt(range)
+    }
+    
+    // 重新映射数据并按FROM表数量排序
+    const sortedData = fromTableData
+      .map(item => ({
+        range: item.range,
+        count: item.count,
+        rangeValue: parseRangeValue(item.range)
+      }))
+      .sort((a, b) => a.rangeValue - b.rangeValue)
+    
+    const categories = sortedData.map(item => item.range) // FROM表数量范围作为类别
+    const values = sortedData.map(item => item.count) // SQL查询数量作为值
+    
+    fromTableChartInstance.setOption({
+      xAxis: {
+        data: categories
+      },
+      series: [{
+        data: values
+      }]
+    })
+  }
+}
+
+const updatePlanNodeChart = () => {
+  if (planNodeChartInstance && slowSqlStats.value) {
     const planNodeData = slowSqlStats.value.plan_node_distribution || []
     
-    queryInfoChartInstance.setOption({
-      series: [
-        {
-          data: fromTableData.map(item => item.count)
-        },
-        {
-          data: planNodeData.map(item => item.count)
-        }
-      ]
+    // 解析range为数值，用于排序
+    const parseRangeValue = (range: string) => {
+      if (range.includes('-')) {
+        return parseInt(range.split('-')[0])
+      }
+      return parseInt(range)
+    }
+    
+    // 重新映射数据并按计划节点数量排序
+    const sortedData = planNodeData
+      .map(item => ({
+        range: item.range,
+        count: item.count,
+        rangeValue: parseRangeValue(item.range)
+      }))
+      .sort((a, b) => a.rangeValue - b.rangeValue)
+    
+    const categories = sortedData.map(item => item.range) // 计划节点数量范围作为类别
+    const values = sortedData.map(item => item.count) // SQL查询数量作为值
+    
+    planNodeChartInstance.setOption({
+      xAxis: {
+        data: categories
+      },
+      series: [{
+        data: values
+      }]
     })
   }
 }

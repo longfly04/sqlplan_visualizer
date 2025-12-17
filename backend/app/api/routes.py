@@ -44,9 +44,11 @@ async def get_plans(
         cursor = collection_obj.find({}).sort("timestamp", -1).skip(skip).limit(size)
         plans = await cursor.to_list(length=size)
         
-        # 转换_id为字符串
+        # 转换_id为字符串并处理复杂度信息
         for plan in plans:
             plan["_id"] = str(plan["_id"])
+            # 处理复杂度信息
+            plan = AnalysisService.process_record_complexity(plan)
         
         return {
             "items": plans,

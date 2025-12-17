@@ -3,6 +3,14 @@ from typing import List, Optional, Any, Dict
 from datetime import datetime
 from enum import Enum
 
+class ComplexityLevel(str, Enum):
+    """复杂度等级枚举"""
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    VERY_HIGH = "VERY_HIGH"
+    EXTREME = "EXTREME"
+
 class StatusEnum(str, Enum):
     SUCCESS = "success"
     ERROR = "error"
@@ -21,6 +29,12 @@ class SQLExecutionRecord(BaseModel):
     timestamp: float = Field(..., description="数据保存时间戳")
     save_time: Optional[str] = Field(None, description="友好格式保存时间")
     sql_content: str = Field(..., description="原始SQL语句")
+    # 复杂度相关字段
+    actual_processing_complexity: Optional[float] = Field(None, description="实际处理复杂度数值")
+    complexity_level: Optional[ComplexityLevel] = Field(None, description="复杂度等级")
+    table_count: Optional[int] = Field(None, description="表数量")
+    sql_plan: Optional[str] = Field(None, description="SQL执行计划")
+    sql_plan_metrics: Optional[Dict[str, Any]] = Field(None, description="SQL计划指标")
 
 class CollectionList(BaseModel):
     """集合列表响应"""

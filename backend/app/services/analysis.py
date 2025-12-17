@@ -3,6 +3,7 @@ import time
 from typing import List, Dict, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.schemas import SQLExecutionRecord, StatisticsSummary
+from app.services.complexity import ComplexityService
 
 class AnalysisService:
     """数据分析服务"""
@@ -38,6 +39,30 @@ class AnalysisService:
             'cache_ttl': AnalysisService._cache_ttl,
             'cached_keys': list(AnalysisService._stats_cache.keys())
         }
+    
+    @staticmethod
+    def process_record_complexity(record: Dict[str, Any]) -> Dict[str, Any]:
+        """处理记录中的复杂度信息 - 如果没有enhanced_complexity_analysis字段则保持不变"""
+        try:
+            # 检查是否有enhanced_complexity_analysis字段
+            if 'enhanced_complexity_analysis' in record:
+                print(f"[ANALYSIS] 记录包含enhanced_complexity_analysis字段，记录ID: {record.get('_id', 'Unknown')}")
+                # 如果有该字段，可以进行一些基本验证，但不进行复杂计算
+                enhanced = record['enhanced_complexity_analysis']
+                if enhanced and isinstance(enhanced, dict):
+                    # 验证是否有必需的字段
+                    if 'total_complexity_score' in enhanced:
+                        print(f"[ANALYSIS] 记录包含total_complexity_score: {enhanced['total_complexity_score']}")
+                    else:
+                        print(f"[ANALYSIS] enhanced_complexity_analysis缺少total_complexity_score字段")
+            else:
+                print(f"[ANALYSIS] 记录不包含enhanced_complexity_analysis字段，记录ID: {record.get('_id', 'Unknown')}")
+            
+            # 不再进行复杂度计算，让前端直接显示"未知"
+            return record
+        except Exception as e:
+            print(f"[ANALYSIS] 处理复杂度信息失败: {e}")
+            return record
     
     @staticmethod
     async def get_collection_stats(db: AsyncIOMotorDatabase, collection_name: str, slow_sql_threshold: float = 100.0) -> 'StatisticsSummary':
@@ -616,9 +641,11 @@ class AnalysisService:
         cursor = collection.find(query).sort("timestamp", -1).skip(skip).limit(size)
         records = await cursor.to_list(length=size)
         
-        # 转换_id为字符串
+        # 转换_id为字符串并处理复杂度信息
         for record in records:
             record["_id"] = str(record["_id"])
+            # 处理复杂度信息
+            record = AnalysisService.process_record_complexity(record)
         
         return {
             "items": records,

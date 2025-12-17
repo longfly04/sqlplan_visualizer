@@ -13,6 +13,16 @@ export interface SQLExecutionRecord {
   sql_content: string;
   sql_plan?: string;
   table_count?: number;
+  // 复杂度相关字段
+  actual_processing_complexity?: number;
+  complexity_level?: string;
+  sql_plan_metrics?: any;
+  enhanced_complexity_analysis?: {
+    total_complexity?: number;
+    complexity_score?: number;
+    complexity_factors?: any;
+    [key: string]: any;
+  };
 }
 
 export interface CollectionList {

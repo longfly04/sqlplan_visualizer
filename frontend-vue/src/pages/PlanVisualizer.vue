@@ -109,8 +109,8 @@
           resizable
         >
           <template #default="{ row }">
-            <div class="sql-plan-content" :data-plan="row.sql_plan">
-              {{ row.sql_plan || '无执行计划' }}
+            <div class="sql-plan-content" :title="getTruncatedPlan(row.sql_plan)">
+              {{ getTruncatedPlan(row.sql_plan) }}
             </div>
           </template>
         </el-table-column>
@@ -124,6 +124,37 @@
         >
           <template #default="{ row }">
             {{ row.table_count || 0 }}
+          </template>
+        </el-table-column>
+        
+        <el-table-column
+          prop="enhanced_complexity_analysis"
+          label="复杂度"
+          width="140"
+          sortable
+          resizable
+        >
+          <template #default="{ row }">
+            <div class="complexity-cell">
+              <el-tag
+                v-if="row.enhanced_complexity_analysis && row.enhanced_complexity_analysis.total_complexity_score"
+                :type="getComplexityTagType(row.enhanced_complexity_analysis.total_complexity_score)"
+                :style="{ color: getComplexityColor(row.enhanced_complexity_analysis.total_complexity_score), borderColor: getComplexityColor(row.enhanced_complexity_analysis.total_complexity_score) }"
+                size="small"
+              >
+                {{ getComplexityDisplayText(row.enhanced_complexity_analysis.total_complexity_score) }}
+              </el-tag>
+              <span v-if="row.enhanced_complexity_analysis && row.enhanced_complexity_analysis.total_complexity_score" class="complexity-value">
+                ({{ row.enhanced_complexity_analysis.total_complexity_score.toFixed(1) }})
+              </span>
+              <el-tag
+                v-else
+                type="info"
+                size="small"
+              >
+                未知
+              </el-tag>
+            </div>
           </template>
         </el-table-column>
         
@@ -207,35 +238,68 @@ const total = ref(0)
 const searchQuery = ref('')
 const searchStatus = ref<'all' | 'success' | 'error'>('all')
 
-// 动态调整tooltip样式
-const adjustTooltipStyles = () => {
-  setTimeout(() => {
-    const tooltips = document.querySelectorAll('.el-tooltip__popper')
-    tooltips.forEach(tooltip => {
-      const content = tooltip.querySelector('.el-tooltip__content')
-      if (content) {
-        // 强制设置样式
-        ;(content as HTMLElement).style.maxHeight = '120px'
-        ;(content as HTMLElement).style.overflowY = 'auto'
-        ;(content as HTMLElement).style.overflowX = 'hidden'
-        ;(content as HTMLElement).style.wordBreak = 'break-word'
-        ;(content as HTMLElement).style.whiteSpace = 'pre-wrap'
-        ;(content as HTMLElement).style.padding = '8px 12px'
-        ;(content as HTMLElement).style.lineHeight = '1.4'
-        ;(content as HTMLElement).style.fontSize = '12px'
-        ;(content as HTMLElement).style.backgroundColor = '#fff'
-        ;(content as HTMLElement).style.color = '#333'
-        ;(content as HTMLElement).style.border = '1px solid #ddd'
-        ;(content as HTMLElement).style.borderRadius = '4px'
-        ;(content as HTMLElement).style.boxShadow = '0 2px 12px 0 rgba(0, 0, 0, 0.1)'
-        ;(content as HTMLElement).style.maxWidth = '600px'
-      }
-      
-      // 设置容器样式
-      ;(tooltip as HTMLElement).style.maxWidth = '600px'
-      ;(tooltip as HTMLElement).style.zIndex = '999999'
-    })
-  }, 100)
+// 截断SQL执行计划文本 - 显示前后200字符，中间省略号连接
+const getTruncatedPlan = (plan: string) => {
+  if (!plan) {
+    return '无执行计划'
+  }
+  
+  if (plan.length <= 400) {
+    return plan
+  }
+  
+  const headLength = 200
+  const tailLength = 200
+  const head = plan.substring(0, headLength)
+  const tail = plan.substring(plan.length - tailLength)
+  
+  return head + '...' + tail
+}
+
+// 复杂度相关方法
+const getComplexityDisplayText = (complexityValue: number) => {
+// 根据复杂度数值确定显示文本
+if (complexityValue <= 30) {
+return '低'
+} else if (complexityValue <= 70) {
+return '中'
+} else if (complexityValue <= 120) {
+return '高'
+} else if (complexityValue <= 200) {
+return '非常高'
+} else {
+return '极高'
+}
+}
+
+const getComplexityTagType = (complexityValue: number) => {
+// 根据复杂度数值确定标签类型
+if (complexityValue <= 30) {
+return 'success' // 绿色 - 低复杂度
+} else if (complexityValue <= 70) {
+return 'warning' // 橙色 - 中等复杂度
+} else if (complexityValue <= 120) {
+return 'danger'  // 红色 - 高复杂度
+} else if (complexityValue <= 200) {
+return 'danger'  // 深红色 - 非常高复杂度
+} else {
+return 'danger'  // 黑色 - 极高复杂度
+}
+}
+
+const getComplexityColor = (complexityValue: number) => {
+// 根据复杂度数值确定颜色
+if (complexityValue <= 30) {
+return '#67C23A'  // 绿色 - 低复杂度
+} else if (complexityValue <= 70) {
+return '#E6A23C'  // 橙色 - 中等复杂度
+} else if (complexityValue <= 120) {
+return '#F56C6C'  // 红色 - 高复杂度
+} else if (complexityValue <= 200) {
+return '#E03030'  // 深红色 - 非常高复杂度
+} else {
+return '#000000'  // 黑色 - 极高复杂度
+}
 }
 
 // 加载集合列表
@@ -247,23 +311,17 @@ onMounted(async () => {
       selectedCollection.value = data.collections[0]
     }
     
-    // 延迟执行tooltip样式调整，确保DOM完全加载
-    setTimeout(() => {
-      adjustTooltipStyles()
-    }, 500)
+    // CSS样式已经足够处理tooltip，无需额外的JavaScript调整
     
   } catch (err: any) {
     error.value = '加载集合列表失败'
   }
 })
 
-// 监听页面变化，重新调整tooltip样式
+// 监听页面变化
 watch([selectedCollection, currentPage], async () => {
   if (selectedCollection.value) {
-    // 数据加载完成后调整tooltip样式
-    setTimeout(() => {
-      adjustTooltipStyles()
-    }, 300)
+    // CSS样式已经足够处理tooltip，无需额外的JavaScript调整
   }
 })
 
@@ -432,7 +490,18 @@ const handleViewPlan = (record: SQLExecutionRecord) => {
 /* 表格列宽调整样式 */
 .el-table .cell {
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* SQL执行计划单元格特殊处理 */
+.sql-plan-content {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  word-break: break-all;
 }
 
 .el-table .el-table__header-wrapper th {
@@ -456,6 +525,19 @@ const handleViewPlan = (record: SQLExecutionRecord) => {
   display: flex;
   justify-content: center;
   margin-top: 16px;
+}
+
+/* 复杂度列样式 */
+.complexity-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.complexity-value {
+  font-size: 11px;
+  color: #666;
+  font-weight: normal;
 }
 
 </style>
